@@ -1,0 +1,15 @@
+{
+  "dataset": "PneumoniaMNIST 128x128 (MedMNIST v2), official test set, never seen in training",
+  "test_images": 624,
+  "test_pneumonia": 390,
+  "test_normal": 234,
+  "auc": 0.975,
+  "threshold": 0.526,
+  "sensitivity_pct": 97.4,
+  "specificity_pct": 83.8,
+  "flags_correct_pct": 90.9,
+  "missed_cases": 10,
+  "false_flags": 38,
+  "accuracy_pct": 92.3,
+  "val_auc": 0.997
+}

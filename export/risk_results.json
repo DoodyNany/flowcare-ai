@@ -1,0 +1,13 @@
+{
+  "data": "synthetic ward patients (no real data)",
+  "test_patients": 15000,
+  "deterioration_rate_pct": 4.9,
+  "auc_ai": 0.833,
+  "auc_news2": 0.805,
+  "same_alert_rate_pct": 15.5,
+  "caught_ai_pct": 65.8,
+  "caught_news2_pct": 59.8,
+  "alert_correct_ai_pct": 20.6,
+  "alert_correct_news2_pct": 18.7,
+  "ai_threshold_prob": 0.061
+}

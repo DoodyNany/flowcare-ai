@@ -1,0 +1,55 @@
+{
+  "ED": {
+    "mae_ai_beds": 5.47,
+    "mae_simple_guess_beds": 19.8,
+    "improvement_pct": 72.4,
+    "fill_up_events_2026": 473,
+    "warned_2h_plus_pct": 93.2,
+    "median_warning_hours": 7.0,
+    "false_alarm_pct": 4.2
+  },
+  "IM": {
+    "mae_ai_beds": 2.6,
+    "mae_simple_guess_beds": 5.18,
+    "improvement_pct": 49.9,
+    "fill_up_events_2026": 98,
+    "warned_2h_plus_pct": 86.7,
+    "median_warning_hours": 7.0,
+    "false_alarm_pct": 15.1
+  },
+  "SURG": {
+    "mae_ai_beds": 2.12,
+    "mae_simple_guess_beds": 3.01,
+    "improvement_pct": 29.8,
+    "fill_up_events_2026": 114,
+    "warned_2h_plus_pct": 55.3,
+    "median_warning_hours": 8.0,
+    "false_alarm_pct": 27.5
+  },
+  "OBGYN": {
+    "mae_ai_beds": 1.96,
+    "mae_simple_guess_beds": 3.78,
+    "improvement_pct": 48.1,
+    "fill_up_events_2026": 142,
+    "warned_2h_plus_pct": 76.8,
+    "median_warning_hours": 7.0,
+    "false_alarm_pct": 19.1
+  },
+  "ICU": {
+    "mae_ai_beds": 1.14,
+    "mae_simple_guess_beds": 1.43,
+    "improvement_pct": 20.4,
+    "fill_up_events_2026": 70,
+    "warned_2h_plus_pct": 55.7,
+    "median_warning_hours": 6.0,
+    "false_alarm_pct": 17.0
+  },
+  "ed_7day_planner": {
+    "all_2026_7days_ahead_mae_visits": 12.9,
+    "hajj_2026_7days_ahead_mae_with_islamic_calendar": 16.2,
+    "hajj_2026_7days_ahead_mae_without_islamic_calendar": 72.0,
+    "ramadan_2026_7days_ahead_mae_with": 12.2,
+    "ramadan_2026_7days_ahead_mae_without": 13.9,
+    "hajj_2026_avg_daily_visits": 269.7
+  }
+}

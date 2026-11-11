@@ -1,0 +1,1 @@
+Put pneumoniamnist_128.npz and nodulemnist3d.npz here (download from https://zenodo.org/records/10519652)

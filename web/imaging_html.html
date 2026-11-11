@@ -1,0 +1,107 @@
+<!-- ============ 4 X-RAY ============ -->
+<section role="tabpanel" id="xray" aria-labelledby="t-xray">
+  <div class="answer" id="x-answer"><span class="dot"></span><div><h2 id="x-h"></h2><p id="x-p"></p></div></div>
+  <div class="imggrid">
+    <div class="panel">
+      <div class="ph"><h2 data-tip="Reading list|The physician's queue of chest X-rays waiting to be read. The AI moves likely pneumonia to the top so it is read first.">Reading list</h2>
+        <div class="seg" role="group" aria-label="Sort reading list">
+          <button class="on" id="xs-ai" data-tip="Sort by AI priority|Flagged X-rays first, then oldest first. This is how Flow Care orders the list.">AI priority</button>
+          <button id="xs-time" data-tip="Sort by arrival|The usual order without AI: first come, first read.">Arrival</button></div></div>
+      <div id="xlist" class="wl"></div>
+      <p class="small muted" id="xgain" style="margin:10px 0 0" data-tip="Time saved|How many places earlier flagged X-rays are read when the list is sorted by the AI instead of arrival time."></p>
+      <label class="f" for="xfile" style="margin-top:12px" data-tip="Upload|Try any chest X-ray image. It is processed on this computer only and never sent anywhere.">Add your own X-ray (stays on this computer)<input type="file" id="xfile" accept="image/*"></label>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2 id="xtitle">X-ray</h2>
+        <div class="tools">
+          <label class="toggle small" for="xheat" data-tip="Heat map|Shows in red where the AI found the pattern that drove its score (class activation map)."><input type="checkbox" id="xheat" checked> Heat map</label>
+          <label class="toggle small" for="xcmp" data-tip="Compare|Shows the plain X-ray and the heat map side by side."><input type="checkbox" id="xcmp"> Side by side</label>
+        </div></div>
+      <div class="viewer2" id="xviewer">
+        <div class="vwrap"><canvas id="xcanvas" width="384" height="384" aria-label="Selected chest X-ray" data-tip="X-ray viewer|Move the mouse over the image to magnify it. Red areas show where the AI looked."></canvas><span class="vlab">AI heat map</span></div>
+        <div class="vwrap" id="xplainwrap" hidden><canvas id="xplain" width="384" height="384" aria-label="Plain X-ray"></canvas><span class="vlab">Original</span></div>
+      </div>
+      <div class="sliders">
+        <label class="f" for="xbright" data-tip="Brightness|Like the window level on a radiology workstation. Only changes the display, not the AI.">Brightness<input type="range" id="xbright" min="-60" max="60" value="0"></label>
+        <label class="f" for="xcontrast" data-tip="Contrast|Stretches the grey levels to make subtle shadows easier to see. Only changes the display.">Contrast<input type="range" id="xcontrast" min="50" max="200" value="100"></label>
+        <label class="f" for="xop" data-tip="Heat map strength|How strongly the red heat map is drawn over the image.">Heat map<input type="range" id="xop" min="0" max="100" value="65"></label>
+        <button class="btn sm" id="xreset" data-tip="Reset view|Brightness, contrast and heat map back to normal.">Reset</button>
+      </div>
+    </div>
+    <div class="panel stack" style="gap:14px">
+      <canvas id="xmag" width="200" height="120" class="mag" aria-label="Magnifier" data-tip="Magnifier|A 3× close-up of the area under your mouse on the X-ray."></canvas>
+      <div data-tip="AI score|0 = no pneumonia pattern, 1 = strong pattern. At or above the dashed line the X-ray is flagged. The amber zone around the line is borderline.">
+        <span class="small muted">AI pattern score</span>
+        <div style="display:flex;align-items:baseline;gap:10px"><div class="bigpct" id="xscore" style="font-size:42px">-</div><span class="chip" id="xverdict">-</span></div>
+        <div class="scale" style="margin-top:8px"><span class="zone" id="xzone"></span><span class="thr" id="xthrline"></span><span class="mark" id="xmark"></span></div>
+        <div class="small muted" style="display:flex;justify-content:space-between;margin-top:4px"><span>0 clear</span><span id="xthr"></span><span>1 strong</span></div>
+      </div>
+      <div class="callout teal small" id="xqueue"></div>
+      <div class="decision">
+        <h3 data-tip="Physician decides|The AI never diagnoses. The physician's decision is the result and is logged.">Physician's decision</h3>
+        <label class="f" for="xdoc">Physician name<input id="xdoc" placeholder="Dr. ..."></label>
+        <div class="acts">
+          <button class="btn sm bad" data-xdec="Pneumonia" data-tip="Confirm|The physician diagnoses pneumonia.">Pneumonia</button>
+          <button class="btn sm good" data-xdec="Normal" data-tip="Normal|The physician finds no pneumonia.">Normal</button>
+          <button class="btn sm" data-xdec="More tests" data-tip="More tests|Not enough to decide: order more tests or a CT.">More tests</button>
+        </div>
+        <span class="chip warn" id="xstatus" style="align-self:flex-start">Waiting for physician</span>
+        <span class="small muted" id="xtruth"></span>
+      </div>
+      <div class="audit" id="xaudit" data-tip="Audit|How often the physician agreed with the AI in this session. Disagreements are how the AI gets checked and improved."></div>
+    </div>
+  </div>
+  <p class="callout warn small" style="margin:0">Research prototype trained on public children's chest X-rays (128×128 pixels). It never diagnoses and is not approved for clinical use.</p>
+</section>
+
+<!-- ============ 5 CT ============ -->
+<section role="tabpanel" id="ct" aria-labelledby="t-ct">
+  <div class="answer" id="c-answer"><span class="dot"></span><div><h2 id="c-h"></h2><p id="c-p"></p></div></div>
+  <div class="imggrid">
+    <div class="panel">
+      <div class="ph"><h2 data-tip="CT worklist|Chest CT scans with a lung nodule (a small spot in the lung). The AI scores each one so suspicious nodules are reviewed first.">CT worklist</h2><span class="chip plain" data-tip="Real test scans|Real, de-identified 3D CT crops from the public LIDC-IDRI collection (via NoduleMNIST3D). The AI never saw them while learning.">Real test scans</span></div>
+      <div id="clist" class="wl"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2 id="ctitle">CT scan</h2>
+        <div class="tools">
+          <label class="toggle small" for="cheat" data-tip="Heat map|Shows in red where in 3D the AI found the pattern that drove its score."><input type="checkbox" id="cheat" checked> Heat map</label>
+          <button class="btn sm" id="chot" data-tip="Go to AI hotspot|Moves all three views to the point the AI found most suspicious.">Go to hotspot</button>
+          <button class="btn sm" id="cplay" data-tip="Scroll through slices|Plays through the scan from top to bottom, like scrolling on a radiology workstation.">▶ Scroll slices</button>
+        </div></div>
+      <div class="ctviews">
+        <div class="ctv"><canvas id="cv-ax" width="240" height="240" data-tip="Axial view|Looking down from head to feet, one slice at a time. Click to move the crosshair; scroll to change slice."></canvas>
+          <label class="f" for="cs-ax">Axial · top to bottom <span id="cn-ax" class="num"></span><input type="range" id="cs-ax" min="0" max="27"></label></div>
+        <div class="ctv"><canvas id="cv-co" width="240" height="240" data-tip="Coronal view|Looking from the front of the patient. Click to move the crosshair; scroll to change slice."></canvas>
+          <label class="f" for="cs-co">Coronal · front to back <span id="cn-co" class="num"></span><input type="range" id="cs-co" min="0" max="27"></label></div>
+        <div class="ctv"><canvas id="cv-sa" width="240" height="240" data-tip="Sagittal view|Looking from the side of the patient. Click to move the crosshair; scroll to change slice."></canvas>
+          <label class="f" for="cs-sa">Sagittal · right to left <span id="cn-sa" class="num"></span><input type="range" id="cs-sa" min="0" max="27"></label></div>
+        <div class="ctv"><canvas id="cv-mip" width="240" height="240" data-tip="Maximum intensity projection|All axial slices stacked into one picture, keeping the brightest point. Nodules stand out clearly."></canvas>
+          <span class="f">Whole-volume view (MIP)</span></div>
+      </div>
+      <p class="small muted" style="margin:10px 0 0">Each scan is a 28×28×28 voxel cube centred on the nodule (a voxel is a 3D pixel). Yellow lines are the crosshair linking the three views.</p>
+    </div>
+    <div class="panel stack" style="gap:14px">
+      <div data-tip="AI score|0 = looks benign, 1 = strongly suspicious for malignancy. At or above the dashed line the scan is flagged for a radiologist.">
+        <span class="small muted">AI suspicion score</span>
+        <div style="display:flex;align-items:baseline;gap:10px"><div class="bigpct" id="cscore" style="font-size:42px">-</div><span class="chip" id="cverdict">-</span></div>
+        <div class="scale" style="margin-top:8px"><span class="zone" id="czone"></span><span class="thr" id="cthrline"></span><span class="mark" id="cmark"></span></div>
+        <div class="small muted" style="display:flex;justify-content:space-between;margin-top:4px"><span>0 benign</span><span id="cthr"></span><span>1 suspicious</span></div>
+      </div>
+      <div class="callout teal small" id="cinfo"></div>
+      <div class="decision">
+        <h3 data-tip="Radiologist decides|The AI never diagnoses cancer. The radiologist, usually with a tumour board (MDT), decides the next step.">Radiologist's decision</h3>
+        <div class="acts">
+          <button class="btn sm bad" data-cdec="Refer to tumour board (MDT)" data-tip="Refer|Suspicious: discuss at the multidisciplinary tumour board and plan a biopsy or PET-CT.">Refer to MDT</button>
+          <button class="btn sm" data-cdec="Follow-up CT in 3 months" data-tip="Follow-up|Uncertain: repeat the CT in 3 months to see if the nodule grows.">CT in 3 months</button>
+          <button class="btn sm good" data-cdec="Benign: routine care" data-tip="Benign|Looks harmless: routine care.">Benign</button>
+        </div>
+        <span class="chip warn" id="cstatus" style="align-self:flex-start">Waiting for radiologist</span>
+        <span class="small muted" id="ctruth"></span>
+      </div>
+      <div class="audit" id="caudit" data-tip="Audit|How often the radiologist agreed with the AI in this session."></div>
+    </div>
+  </div>
+  <p class="callout warn small" style="margin:0">Research prototype. Labels come from radiologists' malignancy ratings in LIDC-IDRI, not biopsies. It never diagnoses cancer and is not approved for clinical use.</p>
+</section>
+

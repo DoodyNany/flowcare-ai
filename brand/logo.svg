@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Flow Care AI logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16b39e"/>
+      <stop offset="1" stop-color="#0a7a6c"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="112" height="112" rx="28" fill="url(#bg)"/>
+  <!-- patient-flow arc: one continuous journey through the hospital -->
+  <path d="M24 84 C 24 44, 60 26, 92 34" fill="none" stroke="#b4f5e6" stroke-width="9" stroke-linecap="round"/>
+  <path d="M84 22 L 98 35 L 82 45" fill="none" stroke="#b4f5e6" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- medical cross -->
+  <path d="M60 50 v40 M40 70 h40" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
+  <!-- AI node -->
+  <circle cx="60" cy="70" r="5" fill="#0d8a7a"/>
+</svg>

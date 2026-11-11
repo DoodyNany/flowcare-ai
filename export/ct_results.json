@@ -1,0 +1,16 @@
+{
+  "dataset": "NoduleMNIST3D 28x28x28 (MedMNIST v2, from LIDC-IDRI chest CT), official test set",
+  "test_scans": 310,
+  "test_suspicious": 64,
+  "test_benign": 246,
+  "auc": 0.865,
+  "threshold": 0.356,
+  "sensitivity_pct": 90.6,
+  "specificity_pct": 57.7,
+  "flags_correct_pct": 35.8,
+  "missed_cases": 6,
+  "false_flags": 104,
+  "accuracy_pct": 64.5,
+  "val_auc": 0.818,
+  "params": 69729
+}

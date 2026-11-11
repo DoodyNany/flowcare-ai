@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flow Care AI</title>
+<link rel="icon" href="data:image/svg+xml,/*__LOGO_URI__*/">
+<style>
+/* Layout idea: a live hospital command screen on white, green-teal as the single brand colour.
+   Every element explains itself on hover (data-tip). Works offline: system fonts only. */
+:root{
+  --bg:#f5faf9; --panel:#ffffff; --ink:#12302b; --muted:#5b726d; --line:#dce9e6;
+  --accent:#0d9480; --accent-dk:#0a6f61; --accent-soft:#e3f5f1; --mint:#b4f5e6;
+  --ok:#1f8a4c; --ok-soft:#e3f4e9; --warn:#b06a00; --warn-soft:#fdf1dc; --crit:#c0352b; --crit-soft:#fce6e3;
+  --body:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body)}
+h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
+h2{font-size:19px;font-weight:650} h3{font-size:15.5px;font-weight:650}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:13px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+[data-tip]{cursor:help}
+button[data-tip],select[data-tip],input[data-tip],label[data-tip]{cursor:pointer}
+
+/* tooltip */
+#tip{position:fixed;z-index:50;max-width:320px;background:var(--ink);color:#fff;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45;
+  box-shadow:0 8px 24px rgba(10,60,50,.25);pointer-events:none;opacity:0;transition:opacity .12s}
+#tip.on{opacity:1}
+#tip b{display:block;color:var(--mint);font-size:13.5px;margin-bottom:2px}
+
+/* header */
+header{background:var(--panel);border-bottom:3px solid var(--accent);position:sticky;top:0;z-index:10}
+.top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;padding:10px 0 6px}
+.brand{display:flex;gap:12px;align-items:center}
+.brand svg{width:44px;height:44px;flex:none}
+.brand h1{font-size:22px;font-weight:750;color:var(--accent-dk)}
+.brand small{display:block;color:var(--muted);font-size:12.5px}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.clockbox{display:flex;flex-direction:column;line-height:1.2;padding:4px 12px;border-radius:10px;background:var(--accent-soft)}
+.clockbox b{font-size:16px;color:var(--accent-dk)}
+.clockbox span{font-size:12px;color:var(--muted)}
+select.ctl{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+.playbtn{display:inline-flex;align-items:center;gap:6px}
+nav{display:flex;gap:2px;overflow-x:auto;align-items:center}
+nav button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-3px;padding:8px 12px;font-weight:600;color:var(--muted);white-space:nowrap;display:flex;gap:7px;align-items:center}
+nav button .n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent-soft);font-size:12px;color:var(--accent-dk)}
+nav button[aria-selected="true"]{color:var(--accent-dk);border-color:var(--accent-dk)}
+nav button[aria-selected="true"] .n{background:var(--accent);color:#fff}
+.hint{margin-left:auto;font-size:12.5px;color:var(--accent-dk);background:var(--accent-soft);border-radius:999px;padding:3px 11px;white-space:nowrap}
+
+main{padding:18px 0 40px}
+section[role="tabpanel"]{display:none;flex-direction:column;gap:16px}
+section[role="tabpanel"].on{display:flex}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.ph{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline;margin-bottom:10px}
+.cols{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:16px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:16px}
+@media (max-width:960px){.cols{grid-template-columns:1fr}}
+
+.answer{display:flex;gap:14px;align-items:flex-start;border-radius:14px;padding:14px 18px;background:var(--ok-soft)}
+.answer .dot{flex:none;width:14px;height:14px;border-radius:50%;margin-top:5px;background:var(--ok);box-shadow:0 0 0 4px rgba(31,138,76,.15)}
+.answer.warn{background:var(--warn-soft)} .answer.warn .dot{background:var(--warn);box-shadow:0 0 0 4px rgba(176,106,0,.15)}
+.answer.crit{background:var(--crit-soft)} .answer.crit .dot{background:var(--crit);box-shadow:0 0 0 4px rgba(192,53,43,.15)}
+.answer h2{font-size:19px} .answer p{margin:3px 0 0;max-width:80ch}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;border-top:4px solid var(--accent)}
+.kpi b{display:block;font-size:26px;line-height:1.15;font-variant-numeric:tabular-nums}
+.kpi span{color:var(--muted);font-size:12.5px}
+
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:650;white-space:nowrap}
+.chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.crit{background:var(--crit-soft);color:var(--crit)} .chip.plain{border:1px solid var(--line);color:var(--muted);font-weight:500}
+.chip.teal{background:var(--accent-soft);color:var(--accent-dk)}
+
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:7px 13px;font-weight:600}
+.btn:hover{border-color:var(--accent);color:var(--accent-dk)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-dk);color:#fff}
+.btn.good{border-color:var(--ok);color:var(--ok)} .btn.bad{border-color:var(--crit);color:var(--crit)}
+.btn.sm{padding:4px 10px;font-size:13px}
+
+/* department table */
+.dhead,.drow{display:grid;grid-template-columns:150px minmax(0,1.1fr) minmax(0,1fr) 130px;gap:18px;align-items:center}
+.dhead{font-size:12px;color:var(--muted);font-weight:600;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.drow{padding:11px 0;border-bottom:1px solid var(--line)}
+.drow:last-child{border-bottom:0}
+.drow .name b{display:block}
+.meter{display:flex;flex-direction:column;gap:6px}
+.mline{display:grid;grid-template-columns:44px minmax(0,1fr) 92px;gap:8px;align-items:center;font-size:12.5px}
+.track{position:relative;height:12px;border-radius:6px;background:#edf3f2}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--ok)}
+.track i.warn{background:var(--warn)} .track i.crit{background:var(--crit)}
+.track i.fc{opacity:.6;background-image:repeating-linear-gradient(45deg,transparent 0 4px,rgba(255,255,255,.45) 4px 8px)}
+.track .cap{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink)}
+.mline .v{text-align:right;font-variant-numeric:tabular-nums}
+.trend{width:100%;height:64px;display:block}
+.trend rect.hit{fill:transparent}
+.trend rect.hit:hover{fill:rgba(13,148,128,.12)}
+.drow .st{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.drow .st .acts{display:flex;gap:4px}
+.mini{border:1px solid var(--line);background:var(--panel);border-radius:7px;width:28px;height:26px;font-weight:700;line-height:1;color:var(--accent-dk)}
+.mini:hover{border-color:var(--accent)}
+@media (max-width:760px){.dhead{display:none}.drow{grid-template-columns:1fr}.drow .st{align-items:flex-start}}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:5px;background:var(--ok)}
+.legend i.fc{opacity:.6;background-image:repeating-linear-gradient(45deg,transparent 0 3px,rgba(255,255,255,.5) 3px 6px)}
+.legend i.cap{width:2px;height:14px;background:var(--ink);border-radius:0}
+.legend i.line{height:2px;width:16px;background:var(--accent)}
+.legend i.dash{height:0;width:16px;border-top:2px dashed var(--crit);background:none}
+
+.actions{display:flex;flex-direction:column;gap:10px}
+.action{border:1px solid var(--line);border-left:4px solid var(--crit);border-radius:10px;padding:11px 12px;display:flex;flex-direction:column;gap:7px}
+.action p{margin:0}
+.action .why{font-size:12.5px;color:var(--muted)}
+.action .acts{display:flex;gap:6px}
+.action.done{opacity:.6;border-left-color:var(--line)}
+.log{font-size:12.5px;color:var(--muted);margin:8px 0 0;padding-left:18px;max-height:130px;overflow:auto}
+
+/* planner */
+label.f{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted)}
+label.f input,label.f select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink);min-width:0}
+.ctlrow{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.chart{width:100%;height:auto;display:block}
+.chart .bar:hover{opacity:.85}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{font-weight:600;color:var(--muted);font-size:12.5px}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.hi td{background:var(--warn-soft)}
+#ptable td:first-child{white-space:nowrap}
+
+/* risk */
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:12px}
+.form label.f span.u{font-size:11.5px}
+.form label.f .rng{font-size:11px;color:var(--muted)}
+.form input.out{border-color:var(--warn);background:var(--warn-soft)}
+.toggle{display:flex;gap:8px;align-items:center;font-size:14px}
+.bigpct{font-size:50px;font-weight:750;line-height:1;font-variant-numeric:tabular-nums;color:var(--accent-dk)}
+.factor{display:grid;grid-template-columns:minmax(0,180px) minmax(0,1fr) 46px;gap:10px;align-items:center;font-size:13.5px}
+.factor .fb{height:11px;border-radius:6px;background:#edf3f2;overflow:hidden}
+.factor .fb i{display:block;height:100%;background:var(--warn)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cmp > div{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.cmp b{display:block;font-size:22px}
+.callout{border-radius:10px;padding:11px 13px;font-size:14px}
+.callout.warn{background:var(--warn-soft)} .callout.teal{background:var(--accent-soft)}
+.decision{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.decision .acts{display:flex;gap:6px;flex-wrap:wrap}
+
+/* xray */
+.thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.thumbs button{padding:0;border:2px solid var(--line);border-radius:10px;overflow:hidden;background:#000;aspect-ratio:1;position:relative}
+.thumbs button[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.thumbs canvas{width:100%;height:100%;display:block}
+.thumbs .badge{position:absolute;left:4px;top:4px;font-size:10.5px;font-weight:700;border-radius:6px;padding:0 5px;background:rgba(255,255,255,.9);color:var(--ink)}
+.xview{display:grid;grid-template-columns:280px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:680px){.xview{grid-template-columns:1fr}}
+
+.scale{position:relative;height:14px;border-radius:7px;background:linear-gradient(90deg,var(--ok) 0%,var(--ok) 40%,var(--warn) 46%,var(--crit) 100%)}
+.scale .mark{position:absolute;top:-5px;width:4px;height:24px;border-radius:2px;background:var(--ink)}
+.scale .thr{position:absolute;top:-3px;height:20px;width:0;border-left:2px dashed #fff}
+.decision input{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+
+
+/* imaging */
+.imggrid{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr) minmax(0,300px);gap:16px;align-items:start}
+@media (max-width:1100px){.imggrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.imggrid>.panel:nth-child(2){grid-column:1/-1;order:-1}}
+@media (max-width:700px){.imggrid{grid-template-columns:1fr}}
+.wl{display:flex;flex-direction:column;gap:6px;max-height:560px;overflow:auto}
+.wrow{display:grid;grid-template-columns:auto 40px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 8px}
+#clist .wrow{grid-template-columns:40px minmax(0,1fr) auto}
+.wrow:hover{border-color:var(--accent)} .wrow.on{border-color:var(--accent);background:var(--accent-soft)}
+.wrow canvas{width:40px;height:40px;border-radius:6px;background:#000}
+.wrow .pos{font-size:12px;font-weight:700;color:var(--muted);width:16px;text-align:center}
+.wmeta{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.wmeta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wst{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:4px 10px;font-size:13px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--accent);color:#fff}
+.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.viewer2{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.vwrap{position:relative;flex:1 1 300px;max-width:440px}
+.vwrap canvas{width:100%;aspect-ratio:1;border-radius:12px;background:#000;display:block;cursor:crosshair}
+.vlab{position:absolute;left:8px;top:8px;font-size:11.5px;font-weight:700;background:rgba(255,255,255,.88);border-radius:6px;padding:1px 7px}
+.sliders{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;align-items:end;margin-top:12px}
+.sliders input[type=range]{accent-color:var(--accent);padding:0;border:0}
+.mag{width:100%;height:auto;border-radius:10px;background:#000}
+.scale .zone{position:absolute;top:0;bottom:0;background:rgba(255,255,255,.35);border-radius:4px}
+.audit{font-size:13px;border-radius:10px;padding:9px 11px;background:var(--accent-soft)}
+.ctviews{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ctv{display:flex;flex-direction:column;gap:6px}
+.ctv canvas{width:100%;aspect-ratio:1;border-radius:10px;background:#000;cursor:crosshair}
+.ctv input[type=range]{accent-color:var(--accent);padding:0;border:0}
+
+
+/* log */
+#lg-table td{font-size:13px;vertical-align:top}
+#lg-table td.t{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted)}
+#lg-table th{position:sticky;top:0;background:var(--panel)}
+.ty{display:inline-block;border-radius:6px;padding:0 6px;font-size:11.5px;font-weight:700}
+.ty.AI{background:var(--accent-soft);color:var(--accent-dk)} .ty.Decision{background:var(--ok-soft);color:var(--ok)}
+.ty.Action{background:#eef2f1;color:var(--muted)} .ty.System{background:var(--warn-soft);color:var(--warn)}
+
+/* how it works */
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:26px;position:relative}
+.flow .box{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel);position:relative;min-height:100%}
+.flow .box:not(:last-child)::after{content:"";position:absolute;right:-21px;top:50%;width:14px;height:14px;border-top:3px solid var(--accent);border-right:3px solid var(--accent);transform:translateY(-50%) rotate(45deg)}
+.flow .box small{display:block;font-size:11.5px;font-weight:700;color:var(--accent-dk);text-transform:uppercase;letter-spacing:.04em}
+.flow .box.human{background:var(--accent-soft);border-color:transparent}
+@media (max-width:760px){.flow{grid-template-columns:1fr 1fr}.flow .box::after{display:none}}
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.rules{grid-template-columns:1fr}}
+.rules div{border-radius:12px;padding:12px;background:var(--accent-soft)}
+.rules b{display:block;color:var(--accent-dk)}
+
+footer{color:var(--muted);font-size:12.5px;padding:0 0 28px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="tip" role="tooltip"></div>
+<header>
+  <div class="wrap top">
+    <div class="brand" data-tip="Flow Care AI|A hospital-wide patient-flow assistant. Five AI models trained from scratch by our team, running inside this page with no internet and no outside AI service.">
+      /*__LOGO_SVG__*/
+      <div><h1>Flow Care AI</h1><small>Patient Journey track · Team KQFVSD · simulated hospital, no real patients</small></div>
+    </div>
+    <div class="controls">
+      <div class="clockbox" data-tip="Hospital time|The simulated hospital runs on Riyadh time. In 'Right now' mode it follows the real clock; press Play to fast-forward and watch the AI react."><b id="clock">--</b><span id="hijri">--</span></div>
+      <select class="ctl" id="scenario" aria-label="Choose a moment" data-tip="Jump to a moment|Pick a busy moment from 2026 to demo: a Hajj morning, a Ramadan night, or a quiet day. 'Right now' follows the real clock."></select>
+      <button class="btn playbtn" id="play" data-tip="Play / pause|Fast-forwards the hospital one hour per second. Watch bed numbers, forecasts and AI suggestions change live.">▶ Play</button>
+      <select class="ctl" id="speed" aria-label="Playback speed" data-tip="Playback speed|How fast simulated time moves while playing.">
+        <option value="1000">1 hour / sec</option><option value="350">3 hours / sec</option><option value="120">8 hours / sec</option></select>
+    </div>
+  </div>
+  <div class="wrap"><nav role="tablist" aria-label="Sections">
+    <button role="tab" id="t-now" aria-controls="now" aria-selected="true" data-tip="1 · Beds now|Live bed use in every department and the AI's forecast for 8 hours from now, with suggested actions."><span class="n">1</span>Beds now</button>
+    <button role="tab" id="t-planner" aria-controls="planner" aria-selected="false" data-tip="2 · Week ahead|7-day forecast of emergency visits using the Islamic calendar, turned into a nurse and bed plan."><span class="n">2</span>Week ahead</button>
+    <button role="tab" id="t-risk" aria-controls="risk" aria-selected="false" data-tip="3 · Patient risk|Warns when a ward patient may get worse in the next 24 hours, and explains why. A doctor decides."><span class="n">3</span>Patient risk</button>
+    <button role="tab" id="t-xray" aria-controls="xray" aria-selected="false" data-tip="4 · Chest X-ray|A reading list where the AI moves likely pneumonia to the top, with a full X-ray viewer. Never diagnoses."><span class="n">4</span>Chest X-ray</button>
+    <button role="tab" id="t-ct" aria-controls="ct" aria-selected="false" data-tip="5 · CT scan|A 3D chest CT viewer where the AI flags suspicious lung nodules for the radiologist. Never diagnoses."><span class="n">5</span>CT scan</button>
+    <button role="tab" id="t-how" aria-controls="how" aria-selected="false" data-tip="6 · How it works|What data each AI learned from, what it outputs, and who makes the final decision."><span class="n">6</span>How it works</button>
+    <button role="tab" id="t-results" aria-controls="results" aria-selected="false" data-tip="7 · Accuracy|How well each AI did on data it never saw while learning."><span class="n">7</span>Accuracy</button>
+    <button role="tab" id="t-log" aria-controls="logtab" aria-selected="false" data-tip="8 · Log|A complete, time-stamped record of everything done in Flow Care: every click, setting, AI result and human decision."><span class="n">8</span>Log <span class="chip teal" id="logcount" style="padding:0 7px">0</span></button>
+    <span class="hint">Hover anything for help</span>
+  </nav></div>
+</header>
+
+<main class="wrap">
+<!-- ============ 1 BEDS NOW ============ -->
+<section role="tabpanel" id="now" aria-labelledby="t-now" class="on">
+  <div class="answer" id="now-answer" data-tip="AI summary|The single most important thing right now, written by the AI from its forecasts. Red = act now, amber = watch, green = all fine."><span class="dot"></span><div><h2 id="now-h"></h2><p id="now-p"></p></div></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="stack">
+    <div class="panel">
+      <div class="ph"><h2 data-tip="Departments|Each row is one department. Bars compare beds used now with the AI forecast for 8 hours from now. The small chart shows the last 24 hours and the forecast.">Departments</h2>
+        <div class="legend"><span data-tip="Solid bar|Patients in the department right now."><i></i>Now</span><span data-tip="Striped bar|The AI forecast for 8 hours from now."><i class="fc"></i>AI in 8 h</span><span data-tip="Black line|The department's staffed bed count. Past this line, patients wait in corridors (boarding)."><i class="cap"></i>All beds full</span><span data-tip="Dashed red line (trend chart)|The forecast path from now to 8 hours ahead; the faint band is the AI's usual error."><i class="dash"></i>Forecast</span></div></div>
+      <div class="dhead"><span>Department</span><span>Beds: now vs AI forecast</span><span data-tip="Trend|Last 24 hours (line) and the 8-hour forecast (dashed). Hover the chart to see any hour.">Last 24 h → next 8 h</span><span style="text-align:right">Status</span></div>
+      <div id="depts"></div>
+    </div>
+    <div class="cols" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">
+      <div class="panel">
+        <div class="ph"><h2 data-tip="AI suggestions|Generated when a department is forecast at 95%+ of its beds. Each one is a suggestion; staff approve or dismiss it.">What the AI suggests</h2><span class="chip teal" id="pending-chip">0 waiting</span></div>
+        <div class="actions" id="actions"></div>
+        <h3 style="margin-top:14px" data-tip="Decision log|Every approve or dismiss is recorded with the time, so the hospital can audit how staff used the AI.">Decision log</h3>
+        <ul class="log" id="log"><li>No decisions yet.</li></ul>
+      </div>
+      <div class="panel">
+        <h3>Explain a forecast</h3>
+        <p class="small muted" style="margin:4px 0 8px">Pick a department to see what the AI used to make its 8-hour forecast.</p>
+        <select class="ctl" id="why-dept" aria-label="Department to explain" data-tip="Explain a forecast|Shows the inputs the AI looked at for this department's forecast."></select>
+        <div id="why" class="small" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2 WEEK AHEAD ============ -->
+<section role="tabpanel" id="planner" aria-labelledby="t-planner">
+  <div class="answer" id="p-answer"><span class="dot"></span><div><h2 id="p-h"></h2><p id="p-p"></p></div></div>
+  <div class="cols">
+    <div class="panel">
+      <div class="ph"><div><h2>Emergency visits, next 7 days</h2><p class="small muted" style="margin:2px 0 0">The AI knows the Islamic (Umm al-Qura) calendar, so Hajj, Ramadan and Eid surges are expected, not discovered.</p></div></div>
+      <div class="ctlrow">
+        <label class="f" for="pdate" data-tip="Start date|The AI only uses visit numbers up to this day, then forecasts the next 7 days.">Plan from<input type="date" id="pdate" min="2026-01-01" max="2026-12-23"></label>
+        <button class="btn sm" id="p-hajj" data-tip="Hajj 2026|Jumps to the days before Hajj, when Jeddah's emergency visits rise by about 50%.">Hajj 2026</button>
+        <button class="btn sm" id="p-ram" data-tip="Ramadan 2026|Jumps to the start of Ramadan, when emergency visits shift to the night.">Ramadan 2026</button>
+        <button class="btn sm" id="p-eid" data-tip="Eid al-Fitr 2026|Jumps to the end of Ramadan and Eid al-Fitr.">Eid al-Fitr</button>
+        <label class="toggle small" for="p-actual" style="margin-left:auto" data-tip="Check the AI|Draws a black line for what really happened in the simulation, so you can see how close the AI was."><input type="checkbox" id="p-actual" checked> Show what really happened</label>
+      </div>
+      <svg class="chart" id="pchart" viewBox="0 0 760 320" role="img" aria-label="7-day forecast of emergency visits" style="margin-top:10px"></svg>
+      <div class="legend"><span><i style="background:var(--accent)"></i>Normal day</span><span><i style="background:var(--warn)"></i>Surge day (15%+ busier)</span><span><i class="line" style="background:var(--ink);height:3px"></i>What really happened</span><span><i class="dash" style="border-color:var(--muted)"></i>Normal level</span></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2 data-tip="Staff plan|Turns the forecast into a nurse roster and an estimate of extra admissions, using the ratios below.">Staff &amp; bed plan</h2></div>
+      <div class="tbl"><table id="ptable"></table></div>
+      <div class="ctlrow" style="margin-top:12px">
+        <label class="f" for="pnurse" data-tip="Nurse ratio|How many emergency visits one nurse covers in a day. Set by the hospital.">Visits per nurse per day<input type="number" id="pnurse" value="10" min="4" max="20" style="width:110px"></label>
+        <label class="f" for="padm" data-tip="Admission rate|Share of emergency visits that end in a hospital admission. Set by the hospital.">Admitted (%)<input type="number" id="padm" value="15" min="5" max="40" style="width:90px"></label>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 RISK ============ -->
+<section role="tabpanel" id="risk" aria-labelledby="t-risk">
+  <div class="answer" id="r-answer"><span class="dot"></span><div><h2 id="r-h"></h2><p id="r-p"></p></div></div>
+  <div class="cols">
+    <div class="panel">
+      <div class="ph"><h2>Patient observations</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="small muted">Example patients:</span>
+          <button class="btn sm" data-preset="sepsis" data-tip="Bed 12|67-year-old with fever, fast heart rate and raised lactate: early signs of sepsis.">Bed 12</button>
+          <button class="btn sm" data-preset="quiet" data-tip="Bed 7|84-year-old on oxygen, newly confused, kidneys struggling. Vital signs look only mildly off: a 'quiet decline'.">Bed 7</button>
+          <button class="btn sm" data-preset="stable" data-tip="Bed 3|45-year-old recovering well after surgery. Everything in the normal range.">Bed 3</button></div></div>
+      <p class="small muted" style="margin:0 0 12px">Change any value: the AI updates instantly. Values outside the normal range turn amber.</p>
+      <form class="form" id="rform" autocomplete="off"></form>
+    </div>
+    <div class="panel stack" style="gap:14px">
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div data-tip="AI risk|The AI's estimated chance that this patient needs ICU or a rapid-response team in the next 24 hours."><div class="bigpct" id="rpct">-</div><div class="small muted">chance of getting worse in 24 h</div></div>
+        <span id="rlevel" class="chip ok">Low</span>
+      </div>
+      <div class="cmp">
+        <div data-tip="Compared with the ward|An average patient on a general ward has this risk. The AI warns at the alert level."><span class="small muted">Average ward patient</span><b id="ravg">-</b><span class="small muted" id="rthr"></span></div>
+        <div data-tip="NEWS2|National Early Warning Score 2, the paper score hospitals use today. 0–4 low, 5–6 urgent review, 7+ emergency. Shown so doctors can compare."><span class="small muted">NEWS2 (today's score)</span><b id="rnews">-</b><span class="small muted" id="rnewsband"></span></div>
+      </div>
+      <div><h3 style="margin-bottom:8px" data-tip="Why|Each bar shows how much one finding pushes the risk up. The AI is explainable: no hidden reasons.">Why the AI says this</h3><div id="rfactors" style="display:flex;flex-direction:column;gap:7px"></div></div>
+      <div class="decision" id="rdec">
+        <h3 data-tip="Doctor decides|The AI only warns. The doctor's choice is recorded, and the AI never changes treatment.">Doctor's decision</h3>
+        <div class="acts">
+          <button class="btn sm bad" data-rdec="Reviewing now" data-tip="Review now|Doctor goes to see the patient now.">Review now</button>
+          <button class="btn sm" data-rdec="Hourly observations" data-tip="Watch closely|Nurses check vital signs every hour.">Hourly obs</button>
+          <button class="btn sm good" data-rdec="No action needed" data-tip="No action|Doctor disagrees with the warning. This feedback helps improve the AI.">No action</button>
+        </div>
+        <span id="rstatus" class="chip warn" style="align-self:flex-start">Waiting for doctor</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4 X-RAY ============ -->
+<section role="tabpanel" id="xray" aria-labelledby="t-xray">
+  <div class="answer" id="x-answer"><span class="dot"></span><div><h2 id="x-h"></h2><p id="x-p"></p></div></div>
+  <div class="imggrid">
+    <div class="panel">
+      <div class="ph"><h2 data-tip="Reading list|The physician's queue of chest X-rays waiting to be read. The AI moves likely pneumonia to the top so it is read first.">Reading list</h2>
+        <div class="seg" role="group" aria-label="Sort reading list">
+          <button class="on" id="xs-ai" data-tip="Sort by AI priority|Flagged X-rays first, then oldest first. This is how Flow Care orders the list.">AI priority</button>
+          <button id="xs-time" data-tip="Sort by arrival|The usual order without AI: first come, first read.">Arrival</button></div></div>
+      <div id="xlist" class="wl"></div>
+      <p class="small muted" id="xgain" style="margin:10px 0 0" data-tip="Time saved|How many places earlier flagged X-rays are read when the list is sorted by the AI instead of arrival time."></p>
+      <label class="f" for="xfile" style="margin-top:12px" data-tip="Upload|Try any chest X-ray image. It is processed on this computer only and never sent anywhere.">Add your own X-ray (stays on this computer)<input type="file" id="xfile" accept="image/*"></label>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2 id="xtitle">X-ray</h2>
+        <div class="tools">
+          <label class="toggle small" for="xheat" data-tip="Heat map|Shows in red where the AI found the pattern that drove its score (class activation map)."><input type="checkbox" id="xheat" checked> Heat map</label>
+          <label class="toggle small" for="xcmp" data-tip="Compare|Shows the plain X-ray and the heat map side by side."><input type="checkbox" id="xcmp"> Side by side</label>
+        </div></div>
+      <div class="viewer2" id="xviewer">
+        <div class="vwrap"><canvas id="xcanvas" width="384" height="384" aria-label="Selected chest X-ray" data-tip="X-ray viewer|Move the mouse over the image to magnify it. Red areas show where the AI looked."></canvas><span class="vlab">AI heat map</span></div>
+        <div class="vwrap" id="xplainwrap" hidden><canvas id="xplain" width="384" height="384" aria-label="Plain X-ray"></canvas><span class="vlab">Original</span></div>
+      </div>
+      <div class="sliders">
+        <label class="f" for="xbright" data-tip="Brightness|Like the window level on a radiology workstation. Only changes the display, not the AI.">Brightness<input type="range" id="xbright" min="-60" max="60" value="0"></label>
+        <label class="f" for="xcontrast" data-tip="Contrast|Stretches the grey levels to make subtle shadows easier to see. Only changes the display.">Contrast<input type="range" id="xcontrast" min="50" max="200" value="100"></label>
+        <label class="f" for="xop" data-tip="Heat map strength|How strongly the red heat map is drawn over the image.">Heat map<input type="range" id="xop" min="0" max="100" value="65"></label>
+        <button class="btn sm" id="xreset" data-tip="Reset view|Brightness, contrast and heat map back to normal.">Reset</button>
+      </div>
+    </div>
+    <div class="panel stack" style="gap:14px">
+      <canvas id="xmag" width="200" height="120" class="mag" aria-label="Magnifier" data-tip="Magnifier|A 3× close-up of the area under your mouse on the X-ray."></canvas>
+      <div data-tip="AI score|0 = no pneumonia pattern, 1 = strong pattern. At or above the dashed line the X-ray is flagged. The amber zone around the line is borderline.">
+        <span class="small muted">AI pattern score</span>
+        <div style="display:flex;align-items:baseline;gap:10px"><div class="bigpct" id="xscore" style="font-size:42px">-</div><span class="chip" id="xverdict">-</span></div>
+        <div class="scale" style="margin-top:8px"><span class="zone" id="xzone"></span><span class="thr" id="xthrline"></span><span class="mark" id="xmark"></span></div>
+        <div class="small muted" style="display:flex;justify-content:space-between;margin-top:4px"><span>0 clear</span><span id="xthr"></span><span>1 strong</span></div>
+      </div>
+      <div class="callout teal small" id="xqueue"></div>
+      <div class="decision">
+        <h3 data-tip="Physician decides|The AI never diagnoses. The physician's decision is the result and is logged.">Physician's decision</h3>
+        <label class="f" for="xdoc">Physician name<input id="xdoc" placeholder="Dr. ..."></label>
+        <div class="acts">
+          <button class="btn sm bad" data-xdec="Pneumonia" data-tip="Confirm|The physician diagnoses pneumonia.">Pneumonia</button>
+          <button class="btn sm good" data-xdec="Normal" data-tip="Normal|The physician finds no pneumonia.">Normal</button>
+          <button class="btn sm" data-xdec="More tests" data-tip="More tests|Not enough to decide: order more tests or a CT.">More tests</button>
+        </div>
+        <span class="chip warn" id="xstatus" style="align-self:flex-start">Waiting for physician</span>
+        <span class="small muted" id="xtruth"></span>
+      </div>
+      <div class="audit" id="xaudit" data-tip="Audit|How often the physician agreed with the AI in this session. Disagreements are how the AI gets checked and improved."></div>
+    </div>
+  </div>
+  <p class="callout warn small" style="margin:0">Research prototype trained on public children's chest X-rays (128×128 pixels). It never diagnoses and is not approved for clinical use.</p>
+</section>
+
+<!-- ============ 5 CT ============ -->
+<section role="tabpanel" id="ct" aria-labelledby="t-ct">
+  <div class="answer" id="c-answer"><span class="dot"></span><div><h2 id="c-h"></h2><p id="c-p"></p></div></div>
+  <div class="imggrid">
+    <div class="panel">
+      <div class="ph"><h2 data-tip="CT worklist|Chest CT scans with a lung nodule (a small spot in the lung). The AI scores each one so suspicious nodules are reviewed first.">CT worklist</h2><span class="chip plain" data-tip="Real test scans|Real, de-identified 3D CT crops from the public LIDC-IDRI collection (via NoduleMNIST3D). The AI never saw them while learning.">Real test scans</span></div>
+      <div id="clist" class="wl"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2 id="ctitle">CT scan</h2>
+        <div class="tools">
+          <label class="toggle small" for="cheat" data-tip="Heat map|Shows in red where in 3D the AI found the pattern that drove its score."><input type="checkbox" id="cheat" checked> Heat map</label>
+          <button class="btn sm" id="chot" data-tip="Go to AI hotspot|Moves all three views to the point the AI found most suspicious.">Go to hotspot</button>
+          <button class="btn sm" id="cplay" data-tip="Scroll through slices|Plays through the scan from top to bottom, like scrolling on a radiology workstation.">▶ Scroll slices</button>
+        </div></div>
+      <div class="ctviews">
+        <div class="ctv"><canvas id="cv-ax" width="240" height="240" data-tip="Axial view|Looking down from head to feet, one slice at a time. Click to move the crosshair; scroll to change slice."></canvas>
+          <label class="f" for="cs-ax">Axial · top to bottom <span id="cn-ax" class="num"></span><input type="range" id="cs-ax" min="0" max="27"></label></div>
+        <div class="ctv"><canvas id="cv-co" width="240" height="240" data-tip="Coronal view|Looking from the front of the patient. Click to move the crosshair; scroll to change slice."></canvas>
+          <label class="f" for="cs-co">Coronal · front to back <span id="cn-co" class="num"></span><input type="range" id="cs-co" min="0" max="27"></label></div>
+        <div class="ctv"><canvas id="cv-sa" width="240" height="240" data-tip="Sagittal view|Looking from the side of the patient. Click to move the crosshair; scroll to change slice."></canvas>
+          <label class="f" for="cs-sa">Sagittal · right to left <span id="cn-sa" class="num"></span><input type="range" id="cs-sa" min="0" max="27"></label></div>
+        <div class="ctv"><canvas id="cv-mip" width="240" height="240" data-tip="Maximum intensity projection|All axial slices stacked into one picture, keeping the brightest point. Nodules stand out clearly."></canvas>
+          <span class="f">Whole-volume view (MIP)</span></div>
+      </div>
+      <p class="small muted" style="margin:10px 0 0">Each scan is a 28×28×28 voxel cube centred on the nodule (a voxel is a 3D pixel). Yellow lines are the crosshair linking the three views.</p>
+    </div>
+    <div class="panel stack" style="gap:14px">
+      <div data-tip="AI score|0 = looks benign, 1 = strongly suspicious for malignancy. At or above the dashed line the scan is flagged for a radiologist.">
+        <span class="small muted">AI suspicion score</span>
+        <div style="display:flex;align-items:baseline;gap:10px"><div class="bigpct" id="cscore" style="font-size:42px">-</div><span class="chip" id="cverdict">-</span></div>
+        <div class="scale" style="margin-top:8px"><span class="zone" id="czone"></span><span class="thr" id="cthrline"></span><span class="mark" id="cmark"></span></div>
+        <div class="small muted" style="display:flex;justify-content:space-between;margin-top:4px"><span>0 benign</span><span id="cthr"></span><span>1 suspicious</span></div>
+      </div>
+      <div class="callout teal small" id="cinfo"></div>
+      <div class="decision">
+        <h3 data-tip="Radiologist decides|The AI never diagnoses cancer. The radiologist, usually with a tumour board (MDT), decides the next step.">Radiologist's decision</h3>
+        <div class="acts">
+          <button class="btn sm bad" data-cdec="Refer to tumour board (MDT)" data-tip="Refer|Suspicious: discuss at the multidisciplinary tumour board and plan a biopsy or PET-CT.">Refer to MDT</button>
+          <button class="btn sm" data-cdec="Follow-up CT in 3 months" data-tip="Follow-up|Uncertain: repeat the CT in 3 months to see if the nodule grows.">CT in 3 months</button>
+          <button class="btn sm good" data-cdec="Benign: routine care" data-tip="Benign|Looks harmless: routine care.">Benign</button>
+        </div>
+        <span class="chip warn" id="cstatus" style="align-self:flex-start">Waiting for radiologist</span>
+        <span class="small muted" id="ctruth"></span>
+      </div>
+      <div class="audit" id="caudit" data-tip="Audit|How often the radiologist agreed with the AI in this session."></div>
+    </div>
+  </div>
+  <p class="callout warn small" style="margin:0">Research prototype. Labels come from radiologists' malignancy ratings in LIDC-IDRI, not biopsies. It never diagnoses cancer and is not approved for clinical use.</p>
+</section>
+
+<!-- ============ 6 HOW IT WORKS ============ -->
+<section role="tabpanel" id="how" aria-labelledby="t-how">
+  <div class="answer"><span class="dot"></span><div><h2>Five AIs, one rule: AI suggests, clinicians decide</h2><p>Hover over each box to see what it is.</p></div></div>
+  <div class="panel stack" id="flows" style="gap:20px"></div>
+  <div class="panel"><h2 style="margin-bottom:12px">Safety rules built into the prototype</h2>
+    <div class="rules">
+      <div data-tip="Human in the loop|No AI output changes care on its own. Every suggestion and warning needs a named person's decision."><b>Clinicians decide</b>Every suggestion and warning needs a human decision, and the decision is logged.</div>
+      <div data-tip="Explainable|Each output shows its reasons: factor bars, heat maps, the inputs behind a forecast."><b>Explainable</b>Every output shows why: factor bars, heat maps and forecast inputs.</div>
+      <div data-tip="Privacy|The prototype uses simulated patients and a public, de-identified X-ray set. In a hospital, data would stay on hospital servers under Saudi PDPL."><b>Privacy first</b>No real patient data. In a hospital, data stays on site under Saudi PDPL.</div>
+      <div data-tip="Safe discharges|The AI only suggests speeding up patients a doctor has already cleared. It never suggests early discharge."><b>No early discharge</b>Only patients a doctor already cleared are suggested.</div>
+      <div data-tip="Offline|All four models run inside this page. No internet, cloud or outside AI service is needed."><b>Runs offline</b>All models run on this computer: no cloud, no outside AI.</div>
+      <div data-tip="Audit log|Every click, setting, AI result and human decision is time-stamped with the user's name in the Log tab, and can be exported."><b>Full audit log</b>Every action and decision is recorded and can be exported.</div>
+      <div data-tip="Tuned for safety|The X-ray threshold was set to catch at least 95% of pneumonia, accepting extra reviews over missed cases."><b>Safety-first thresholds</b>A missed case costs more than an extra review.</div>
+    </div></div>
+</section>
+
+<!-- ============ 7 ACCURACY ============ -->
+<section role="tabpanel" id="results" aria-labelledby="t-results">
+  <div class="answer"><span class="dot"></span><div><h2>Every AI was tested on data it never saw while learning</h2><p>Green tags = real data. Amber tags = simulated data. Hover over any column title for its meaning.</p></div></div>
+  <div class="panel"><div class="ph"><h2>1 · Beds, 8 hours ahead</h2><span class="small muted">Trained on 2023–2025 · tested on all of 2026</span></div><div class="tbl"><table id="res-fc"></table></div></div>
+  <div class="panel"><div class="ph"><h2>2 · Emergency visits, 7 days ahead</h2></div><div class="tbl"><table id="res-ed"></table></div></div>
+  <div class="panel"><div class="ph"><h2>3 · Patient risk vs NEWS2</h2><span class="small muted">Same number of alerts for both</span></div><div class="tbl"><table id="res-risk"></table></div></div>
+  <div class="panel"><div class="ph"><h2>4 · Chest X-ray warning</h2><span class="small muted">624 real test X-rays · 128×128 pixels</span></div><div class="tbl"><table id="res-xr"></table></div></div>
+  <div class="panel"><div class="ph"><h2>5 · Chest CT nodule warning</h2><span class="small muted">310 real test CT scans · 28×28×28 voxels</span></div><div class="tbl"><table id="res-ct"></table></div></div>
+</section>
+
+<!-- ============ 8 LOG ============ -->
+<section role="tabpanel" id="logtab" aria-labelledby="t-log">
+  <div class="answer"><span class="dot"></span><div><h2>Audit log: every action, AI result and decision is recorded</h2>
+    <p>Kept on this computer and saved between visits. If anything goes wrong, this shows exactly what happened, when, and who did it.</p></div></div>
+  <div class="panel">
+    <div class="ctlrow" style="margin-bottom:12px">
+      <label class="f" for="lg-user" data-tip="Who is using Flow Care|Every entry is stamped with this name. Set it at the start of a shift.">Signed-in user<input id="lg-user" value="Demo user" style="width:160px"></label>
+      <label class="f" for="lg-cat" data-tip="Filter by area|Show only one part of Flow Care.">Area<select id="lg-cat"><option value="">All areas</option></select></label>
+      <label class="f" for="lg-type" data-tip="Filter by type|AI = something the AI produced. Decision = a human approved, dismissed or diagnosed. Action = anything else a person did. System = the app itself.">Type<select id="lg-type"><option value="">All types</option><option>AI</option><option>Decision</option><option>Action</option><option>System</option></select></label>
+      <label class="f" for="lg-q" data-tip="Search|Find entries containing any word, an ID like XR-1043, or a name.">Search<input id="lg-q" placeholder="e.g. CT-2203, approve, Dr." style="width:200px"></label>
+      <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn sm" id="lg-csv" data-tip="Download CSV|Saves the (filtered) log as a spreadsheet file. Works when Flow Care is opened as a file on your computer.">Download CSV</button>
+        <button class="btn sm" id="lg-copy" data-tip="Copy|Copies the (filtered) log as text, ready to paste into an email or document.">Copy</button>
+        <button class="btn sm bad" id="lg-clear" data-tip="Clear log|Deletes every entry. You will be asked to confirm.">Clear</button>
+      </span>
+    </div>
+    <div id="lg-confirm" class="callout warn small" hidden style="margin-bottom:10px">Delete all log entries? This cannot be undone. <button class="btn sm bad" id="lg-yes">Yes, delete</button> <button class="btn sm" id="lg-no">Cancel</button></div>
+    <p class="small muted" id="lg-sum" style="margin:0 0 8px"></p>
+    <div class="tbl" style="max-height:620px;overflow:auto"><table id="lg-table"></table></div>
+  </div>
+</section>
+</main>
+<footer class="wrap">Flow Care AI runs entirely on this computer: no internet, server or outside AI. X-ray data: PneumoniaMNIST (MedMNIST v2, CC BY 4.0; Kermany et al., 2018). NEWS2: Royal College of Physicians, 2017.</footer>
+
+<script>
+/*__MODELS_JS__*/
+</script>
+<script>
+var DATA = /*__DATA__*/null;
+(function(){
+"use strict";
+var $=function(s){return document.querySelector(s);}, $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
+var M=DATA.forecast, RM=DATA.risk, RES=DATA.results, F=new FC.Forecaster(M), NET=new FC.XrayNet(DATA.xray);
+var DEPTS=["ED","IM","SURG","OBGYN","ICU"];
+var NAMES={ED:"Emergency",IM:"Internal Medicine",SURG:"Surgery",OBGYN:"OB/GYN",ICU:"ICU"};
+var STAY={ED:4,IM:96,SURG:72,OBGYN:52,ICU:108};
+var BEDS=M.beds, H=3600000, DAY=86400000, MAE={};
+DEPTS.forEach(function(d){MAE[d]=RES.forecast[d].mae_ai_beds;});
+var census={},arrivals={}; DEPTS.forEach(function(d){census[d]=M.replay.census[d].slice();arrivals[d]=M.replay.arrivals[d].slice();});
+var T0=FC.parseNaive(M.replay.start), NH=census.ED.length, END=T0+(NH-1)*H;
+var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});};
+var tip=function(t,b){return ' data-tip="'+esc(t+"|"+b)+'"';};
+var fmtT=function(ms){var d=new Date(ms);return ("0"+d.getUTCHours()).slice(-2)+":00";};
+var MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],WD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var HM=["Muharram","Safar","Rabi al-Awwal","Rabi al-Thani","Jumada al-Ula","Jumada al-Akhirah","Rajab","Shaban","Ramadan","Shawwal","Dhul-Qadah","Dhul-Hijjah"];
+var fmtD=function(ms){var d=new Date(ms);return WD[d.getUTCDay()]+" "+d.getUTCDate()+" "+MON[d.getUTCMonth()];};
+var cal=M.calendar, calT0=FC.parseNaive(cal.start);
+function hijri(ms){var i=Math.floor((ms-calT0)/DAY);return cal.h_day[i]?cal.h_day[i]+" "+HM[cal.h_month[i]-1]+" 1447":"";}
+function season(ms){var i=Math.floor((ms-calT0)/DAY);return cal.eid[i]?"Eid":cal.hajj[i]?"Hajj season":cal.ramadan[i]?"Ramadan":"";}
+var list=function(a){return a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1];};
+function setAnswer(id,level,h,p){$("#"+id+"-answer").className="answer "+level;$("#"+id+"-h").textContent=h;$("#"+id+"-p").textContent=p;}
+
+/* ---------- audit log ---------- */
+var LOGS=[], LKEY="flowcare_audit_log_v1";
+try{LOGS=JSON.parse(localStorage.getItem(LKEY)||"[]");}catch(e){LOGS=[];}
+var simClock=function(){return "";};
+function nowStamp(){var d=new Date(Date.now()+3*3600000);return d.toISOString().slice(0,10)+" "+d.toISOString().slice(11,19);}
+function LOG(area,type,action,detail){
+  var u=(document.getElementById("lg-user")||{}).value||"Demo user";
+  LOGS.push({t:nowStamp(),sim:simClock(),area:area,type:type,action:action,detail:detail||"",user:u});
+  if(LOGS.length>5000)LOGS=LOGS.slice(-5000);
+  try{localStorage.setItem(LKEY,JSON.stringify(LOGS));}catch(e){}
+  var c=document.getElementById("logcount");if(c)c.textContent=LOGS.length;
+  if(document.getElementById("logtab")&&document.getElementById("logtab").classList.contains("on"))renderLog();
+}
+function areaOf(el){var sec=el.closest&&el.closest("section[role=tabpanel]");if(!sec)return "Header";var t=document.getElementById("t-"+sec.id)||document.getElementById("t-log");
+  var lab=document.querySelector('[aria-controls="'+sec.id+'"]');return lab?(lab.dataset.tip||"").split("|")[0].replace(/^\d+ · /,""):sec.id;}
+function labelOf(el){var t=(el.getAttribute("aria-label")||el.textContent||"").replace(/\s+/g," ").trim();
+  if(!t&&el.dataset&&el.dataset.tip)t=el.dataset.tip.split("|")[0];if(el.dataset&&el.dataset.tip&&t.length<3)t=el.dataset.tip.split("|")[0]+" ("+t+")";return t.slice(0,80);}
+document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("button");if(!b||b.closest("#logtab"))return;
+  if(b.getAttribute("role")==="tab")LOG("Navigation","Action","Opened tab",(b.dataset.tip||"").split("|")[0].replace(/^\d+ · /,""));
+  else if(!b.matches("[data-xdec],[data-cdec],[data-rdec],[data-ok],[data-no],[data-add],[data-dis]"))LOG(areaOf(b),"Action","Clicked",labelOf(b));},true);
+document.addEventListener("change",function(e){var el=e.target;if(!el.matches||!el.matches("input,select")||el.closest("#logtab"))return;
+  var lab=el.closest("label");var name=lab?lab.childNodes[0].textContent.trim()||labelOf(lab):(el.getAttribute("aria-label")||el.id);
+  var v=el.type==="checkbox"?(el.checked?"on":"off"):el.type==="file"?(el.files&&el.files[0]?el.files[0].name:""):(el.tagName==="SELECT"?el.options[el.selectedIndex].text:el.value);
+  LOG(areaOf(el),"Action","Changed setting",name+" → "+v);},true);
+function logFiltered(){var c=$("#lg-cat").value,ty=$("#lg-type").value,q=$("#lg-q").value.trim().toLowerCase();
+  return LOGS.filter(function(r){return (!c||r.area===c)&&(!ty||r.type===ty)&&(!q||(r.action+" "+r.detail+" "+r.user+" "+r.area).toLowerCase().indexOf(q)>=0);});}
+function renderLog(){
+  var cats={};LOGS.forEach(function(r){cats[r.area]=1;});var sel=$("#lg-cat"),cur=sel.value;
+  sel.innerHTML='<option value="">All areas</option>'+Object.keys(cats).sort().map(function(k){return '<option'+(k===cur?" selected":"")+'>'+esc(k)+'</option>';}).join("");
+  var rows=logFiltered(),counts={AI:0,Decision:0,Action:0,System:0};rows.forEach(function(r){counts[r.type]=(counts[r.type]||0)+1;});
+  $("#lg-sum").textContent=rows.length+" of "+LOGS.length+" entries · "+counts.AI+" AI results · "+counts.Decision+" human decisions · "+counts.Action+" actions · "+counts.System+" system events";
+  $("#lg-table").innerHTML='<tr><th>#</th><th data-tip="Real time|Actual date and time (Riyadh) when it happened.">Time (Riyadh)</th><th data-tip="Hospital time|The simulated hospital clock at that moment.">Hospital time</th><th>Type</th><th>Area</th><th>What happened</th><th>User</th></tr>'+
+    rows.slice(-800).reverse().map(function(r){return '<tr><td class="t">'+(LOGS.indexOf(r)+1)+'</td><td class="t">'+r.t+'</td><td class="t">'+esc(r.sim)+'</td><td><span class="ty '+r.type+'">'+r.type+'</span></td><td>'+esc(r.area)+'</td><td><b>'+esc(r.action)+'</b>'+(r.detail?' · '+esc(r.detail):'')+'</td><td>'+esc(r.user)+'</td></tr>';}).join("")+
+    (rows.length>800?'<tr><td colspan="7" class="small muted">Showing the latest 800 entries. Download CSV for all '+rows.length+'.</td></tr>':'');
+}
+function logCSV(){var q=function(v){return '"'+String(v).replace(/"/g,'""')+'"';};
+  return "number,time_riyadh,hospital_time,type,area,action,detail,user\n"+logFiltered().map(function(r){return [LOGS.indexOf(r)+1,r.t,r.sim,r.type,r.area,r.action,r.detail,r.user].map(q).join(",");}).join("\n");}
+
+/* ---------- tooltip ---------- */
+var TIP=$("#tip"), tipEl=null;
+function placeTip(x,y){var w=TIP.offsetWidth,h=TIP.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
+  var L=x+16,T=y+18; if(L+w>vw-8)L=x-w-14; if(T+h>vh-8)T=y-h-14; TIP.style.left=Math.max(8,L)+"px"; TIP.style.top=Math.max(8,T)+"px";}
+function showTip(el,x,y){var t=el.getAttribute("data-tip"),k=t.indexOf("|");
+  TIP.innerHTML=k>=0?"<b>"+esc(t.slice(0,k))+"</b>"+esc(t.slice(k+1)):esc(t);TIP.classList.add("on");tipEl=el;placeTip(x,y);}
+function hideTip(){TIP.classList.remove("on");tipEl=null;}
+document.addEventListener("mouseover",function(e){var el=e.target.closest&&e.target.closest("[data-tip]");if(el)showTip(el,e.clientX,e.clientY);else hideTip();});
+document.addEventListener("mousemove",function(e){if(tipEl)placeTip(e.clientX,e.clientY);});
+document.addEventListener("focusin",function(e){var el=e.target.closest&&e.target.closest("[data-tip]");if(el){var r=el.getBoundingClientRect();showTip(el,r.left,r.bottom);}});
+document.addEventListener("focusout",hideTip); window.addEventListener("scroll",hideTip,true);
+
+/* ---------- tabs ---------- */
+var tabs=$$('[role="tab"]');
+function show(id){tabs.forEach(function(t){var on=t.getAttribute("aria-controls")===id;t.setAttribute("aria-selected",on);document.getElementById(t.getAttribute("aria-controls")).classList.toggle("on",on);});
+  hideTip();try{if(location.hash!=="#"+id)history.replaceState(null,"","#"+id);}catch(e){}}
+tabs.forEach(function(t){t.addEventListener("click",function(){show(t.getAttribute("aria-controls"));});});
+var h0=(location.hash||"").slice(1);if(h0&&document.getElementById(h0))show(h0);
+
+/* ---------- time: live, scenarios, play ---------- */
+var Y26=FC.parseNaive("2026-01-01");
+function findDay(fn){for(var i=0;i<cal.ramadan.length;i++){if(calT0+i*DAY>=Y26&&fn(i))return calT0+i*DAY;}return null;}
+var hajj8=findDay(function(i){return cal.hajj[i]&&cal.h_day_dh[i]===8;}), ram1=findDay(function(i){return cal.ramadan[i];}), eid1=findDay(function(i){return cal.h_month[i]===10&&cal.h_day[i]===1;});
+var SCEN=[{id:"live",label:"Right now (live clock)"},{id:"hajj",label:"Hajj morning · 25 May 2026",at:hajj8+6*H},
+  {id:"ram",label:"Ramadan night · Mar 2026",at:ram1+11*DAY+20*H},{id:"winter",label:"Winter flu week · Jan 2026",at:FC.parseNaive("2026-01-13 08:00")},{id:"quiet",label:"Quiet Friday · Apr 2026",at:FC.parseNaive("2026-04-17 07:00")}];
+SCEN.forEach(function(s){var o=document.createElement("option");o.value=s.id;o.textContent=s.label;$("#scenario").appendChild(o);});
+var live=true, simT=0, timer=null;
+function liveT(){var t=Date.now()+3*H;t=t-t%H;while(t>END)t-=365*DAY;return t;}
+function curT(){return live?liveT():simT;}
+simClock=function(){return fmtD(curT())+" "+fmtT(curT());};
+function idxNow(){return Math.max(200,Math.min(NH-9,Math.round((curT()-T0)/H)));}
+$("#scenario").addEventListener("change",function(){var s=SCEN.filter(function(x){return x.id===$("#scenario").value;})[0];
+  if(s.id==="live"){live=true;}else{live=false;simT=s.at;} renderNow();});
+function stopPlay(){clearInterval(timer);timer=null;$("#play").textContent="▶ Play";$("#play").classList.remove("primary");}
+function startPlay(){if(live){live=false;simT=liveT();}stopPlay();$("#play").textContent="❚❚ Pause";$("#play").classList.add("primary");
+  timer=setInterval(function(){simT+=H;if(simT>END-9*H)simT=Y26+200*H;renderNow();},+$("#speed").value);}
+$("#play").addEventListener("click",function(){timer?stopPlay():startPlay();});
+$("#speed").addEventListener("change",function(){if(timer)startPlay();});
+
+/* ---------- 1 · beds now ---------- */
+var decisions={}, logItems=[], lastSugg=[], lastF={}, LOGGED={};
+function lvl(v,b){return v>=0.95*b?"crit":(v>=0.85*b?"warn":"ok");}
+function bar(v,b,cls,fc,label){var scale=Math.max(1.3*b,v+2);
+  return '<div class="track"'+tip(label,(fc?"AI forecast: about "+Math.round(v)+" ±"+MAE[fc]+" patients":"Right now: "+v+" patients")+" for "+b+" staffed beds ("+Math.round(100*v/b)+"%)."+(v>b?" "+Math.round(v-b)+" more than the beds: patients wait in the corridor or ED.":""))+'><i class="'+cls+(fc?" fc":"")+'" style="width:'+Math.min(100,100*v/scale).toFixed(1)+'%"></i><span class="cap" style="left:'+(100*b/scale).toFixed(1)+'%"></span></div>';}
+function trend(d,i,f){
+  var W=230,Hh=58,P=24,FU=8,vals=census[d].slice(i-P,i+1),b=BEDS[d],t=curT();
+  var mx=Math.max(b*1.2,Math.max.apply(null,vals)+3,f+MAE[d]+2),mn=Math.max(0,Math.min(Math.min.apply(null,vals),f-MAE[d])-5);
+  var x=function(k){return 3+(W-6)*k/(P+FU);},y=function(v){return Hh-3-(Hh-6)*(v-mn)/(mx-mn);};
+  var pts=vals.map(function(v,k){return x(k).toFixed(1)+","+y(v).toFixed(1);});
+  var col=lvl(f,b)==="crit"?"var(--crit)":lvl(f,b)==="warn"?"var(--warn)":"var(--ok)";
+  var s='<svg class="trend" viewBox="0 0 '+W+' '+Hh+'" preserveAspectRatio="none">'+
+    '<rect x="'+x(P)+'" y="0" width="'+(x(P+FU)-x(P))+'" height="'+Hh+'" fill="var(--accent-soft)"/>'+
+    '<line x1="0" x2="'+W+'" y1="'+y(b)+'" y2="'+y(b)+'" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>'+
+    '<path d="M'+x(0)+','+Hh+' L'+pts.join(" L")+' L'+x(P)+','+Hh+' Z" fill="var(--accent)" opacity=".13"/>'+
+    '<polyline points="'+pts.join(" ")+'" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>'+
+    '<polygon points="'+x(P)+','+y(vals[P])+' '+x(P+FU)+','+y(f+MAE[d])+' '+x(P+FU)+','+y(Math.max(0,f-MAE[d]))+'" fill="'+col+'" opacity=".15"/>'+
+    '<line x1="'+x(P)+'" y1="'+y(vals[P])+'" x2="'+x(P+FU)+'" y2="'+y(f)+'" stroke="'+col+'" stroke-width="2" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>';
+  for(var k=0;k<=P;k++){var tk=t-(P-k)*H;
+    s+='<rect class="hit" x="'+(x(k)-(W-6)/(P+FU)/2)+'" y="0" width="'+((W-6)/(P+FU))+'" height="'+Hh+'"'+tip(NAMES[d]+" · "+fmtD(tk)+" "+fmtT(tk),vals[k]+" patients ("+Math.round(100*vals[k]/b)+"% of "+b+" beds)"+(k===P?" · now":""))+'/>';}
+  s+='<rect class="hit" x="'+x(P)+'" y="0" width="'+(x(P+FU)-x(P))+'" height="'+Hh+'"'+tip("AI forecast · "+fmtT(t+8*H),"About "+Math.round(f)+" patients (likely between "+Math.max(0,Math.round(f-MAE[d]))+" and "+Math.round(f+MAE[d])+"). The shaded band is the AI's average error in 2026 testing.")+'/>';
+  return s+'</svg>';
+}
+function suggestions(fcs,now){
+  var out=[],t=curT(),dk=Math.floor(t/DAY),slot=Math.floor(new Date(t).getUTCHours()/8),eta=fmtT(t+8*H);
+  DEPTS.forEach(function(d){var f=fcs[d],b=BEDS[d];if(f<0.95*b)return;
+    var text=d==="ED"?"Open the ED surge area and call one extra triage nurse for the next shift.":
+      d==="ICU"?"Review stable ICU patients for step-down to a ward, and confirm ICU beds for tomorrow's major surgeries.":
+      "Prioritise discharges already approved by doctors on "+NAMES[d]+" before "+eta+" (discharge lounge).";
+    out.push({id:d+dk+"-"+slot,dept:d,text:text,why:NAMES[d]+" has "+now[d]+" patients for "+b+" beds; the AI expects about "+Math.round(f)+" by "+eta+" (±"+MAE[d]+")."});});
+  if(fcs.ED>=0.95*BEDS.ED&&fcs.IM>=0.9*BEDS.IM)out.push({id:"board"+dk+"-"+slot,dept:"ED",text:"Bed manager: review pending ED-to-Internal Medicine admissions now to prevent boarding.",why:"Emergency and Internal Medicine are both forecast near full, so admitted ED patients may have no ward bed."});
+  return out;
+}
+function renderNow(){
+  var i=idxNow(),t=curT(),fcs={},now={},rows="",full=[],over=[],totC=0,totB=0,totF=0;
+  $("#clock").textContent=fmtD(t)+", "+fmtT(t); var hj=hijri(t),se=season(t); $("#hijri").textContent=hj+(se?" · "+se:"");
+  DEPTS.forEach(function(d){
+    var c=census[d][i],b=BEDS[d],f=Math.max(0,F.census8h(d,census[d],arrivals[d],i));fcs[d]=f;now[d]=c;totC+=c;totB+=b;totF+=f;
+    var ln=c>b?"crit":lvl(c,b),lf=lvl(f,b); if(lf==="crit")full.push(NAMES[d]); if(c>b)over.push(NAMES[d]);
+    var chip=lf==="crit"?'<span class="chip crit"'+tip("Full within 8 h","The AI forecasts 95%+ of beds filled within 8 hours. A suggested action has been created.")+'>Full within 8 h</span>':
+      c>b?'<span class="chip crit"'+tip("Over capacity","More patients than staffed beds right now, but the AI expects it to ease.")+'>Over capacity</span>':
+      (lf==="warn"||ln==="warn")?'<span class="chip warn"'+tip("Getting busy","85–95% of beds used now or forecast. No action yet; the AI keeps watching.")+'>Getting busy</span>':
+      '<span class="chip ok"'+tip("OK","Below 85% now and in 8 hours.")+'>OK</span>';
+    var diff=Math.round(f-c);
+    rows+='<div class="drow"><div class="name"><b>'+NAMES[d]+'</b><span class="small muted"'+tip("Staffed beds","Beds with nurses assigned in "+NAMES[d]+".")+'>'+b+' beds</span></div><div class="meter">'+
+      '<div class="mline"><span class="muted">Now</span>'+bar(c,b,ln,null,NAMES[d]+" now")+'<span class="v"><b>'+c+'</b> · '+Math.round(100*c/b)+'%</span></div>'+
+      '<div class="mline"><span class="muted">In 8 h</span>'+bar(f,b,lf,d,NAMES[d]+" in 8 hours")+'<span class="v"'+tip("Change in 8 hours",(diff>=0?"+":"")+diff+" patients compared with now.")+'><b>'+Math.round(f)+'</b> · '+(diff>=0?"▲":"▼")+Math.abs(diff)+'</span></div>'+
+      '</div><div>'+trend(d,i,f)+'</div><div class="st">'+chip+
+      '<div class="acts"><button class="mini" data-add="'+d+'"'+tip("Admit a patient","Adds one patient to "+NAMES[d]+" now. Watch the forecast update.")+'>+</button><button class="mini" data-dis="'+d+'"'+tip("Discharge a patient","Removes one patient from "+NAMES[d]+" now.")+'>−</button></div></div></div>';
+  });
+  $("#depts").innerHTML=rows;
+  var ed24=arrivals.ED.slice(i-23,i+1).reduce(function(a,b){return a+b;},0);
+  lastSugg=suggestions(fcs,now); var pend=lastSugg.filter(function(s){return !decisions[s.id];}).length;
+  $("#kpis").innerHTML=
+    '<div class="kpi"'+tip("Hospital occupancy","All patients in the hospital divided by all staffed beds. Above 85% is when delays usually start.")+'><b>'+Math.round(100*totC/totB)+'%</b><span>Hospital full now ('+totC+'/'+totB+' beds)</span></div>'+
+    '<div class="kpi"'+tip("Occupancy in 8 hours","The AI's forecast for the whole hospital 8 hours from now.")+'><b>'+Math.round(100*totF/totB)+'%</b><span>Hospital full in 8 h (AI)</span></div>'+
+    '<div class="kpi"'+tip("Departments about to fill","Departments the AI forecasts at 95%+ of beds within 8 hours.")+'><b style="color:'+(full.length?"var(--crit)":"var(--ok)")+'">'+full.length+'</b><span>Departments full within 8 h</span></div>'+
+    '<div class="kpi"'+tip("ED arrivals","New emergency patients in the last 24 hours. A normal day here is about 170.")+'><b>'+ed24+'</b><span>ED arrivals, last 24 h</span></div>'+
+    '<div class="kpi"'+tip("Waiting for staff","AI suggestions no one has approved or dismissed yet.")+'><b>'+pend+'</b><span>Suggestions waiting</span></div>';
+  $("#pending-chip").textContent=pend+" waiting";
+  if(full.length)setAnswer("now","crit",list(full)+" will be full within 8 hours","The AI forecasts "+(full.length>1?"these departments":"this department")+" at 95%+ of beds by "+fmtT(t+8*H)+". Approve the suggested actions to free beds before patients start waiting.");
+  else if(over.length)setAnswer("now","warn",list(over)+(over.length>1?" are":" is")+" over capacity now, but easing","The AI expects numbers to come down over the next 8 hours. No action needed yet.");
+  else setAnswer("now","ok","All departments have room for the next 8 hours","The AI rechecks every hour and whenever a patient is admitted or discharged.");
+  $("#actions").innerHTML=lastSugg.length?lastSugg.map(function(s){var dec=decisions[s.id];
+    return '<div class="action'+(dec?" done":"")+'"><p><b>'+esc(s.text)+'</b></p><p class="why"'+tip("Why the AI suggests this",s.why)+'>'+esc(s.why)+'</p>'+
+      (dec?'<span class="chip '+(dec==="Approved"?"ok":"plain")+'" style="align-self:flex-start">'+dec+'</span>':
+       '<div class="acts"><button class="btn sm good" data-ok="'+s.id+'"'+tip("Approve","Staff agree and will do this. Logged with the time.")+'>Approve</button><button class="btn sm" data-no="'+s.id+'"'+tip("Dismiss","Staff decide not to act. Logged too: it shows the AI is a suggestion, not an order.")+'>Dismiss</button></div>')+'</div>';}).join("")
+    :'<p class="small muted" style="margin:0">No suggestions: no department is forecast to reach 95% of its beds in the next 8 hours.</p>';
+  lastF=fcs; renderWhy();
+  var fk=full.join(",")+"|"+fmtD(t)+fmtT(t).slice(0,2);
+  if(full.length&&!LOGGED["f"+full.join(",")+Math.floor(t/(8*H))]){LOGGED["f"+full.join(",")+Math.floor(t/(8*H))]=1;LOG("Beds now","AI","Capacity alert",list(full)+" forecast at 95%+ of beds by "+fmtT(t+8*H)+" ("+full.map(function(n){var d=DEPTS.filter(function(x){return NAMES[x]===n;})[0];return n+" "+Math.round(fcs[d])+"/"+BEDS[d];}).join(", ")+")");}
+  lastSugg.forEach(function(sg){if(!LOGGED[sg.id]){LOGGED[sg.id]=1;LOG("Beds now","AI","Suggested action",sg.text+" Reason: "+sg.why);}});
+}
+function renderWhy(){
+  var d=$("#why-dept").value,i=idxNow(),c=census[d],a=arrivals[d],t=curT(),s3=0,s24=0;for(var j=0;j<24;j++){if(j<3)s3+=a[i-j];s24+=a[i-j];}
+  var se=season(t),rows=[
+    ["Patients now",c[i],"The starting point of the forecast."],["1 hour ago",c[i-1],"Shows the current direction."],["6 hours ago",c[i-6],"Medium-term trend."],
+    ["Same time yesterday",c[i-24],"Daily rhythm: wards fill and empty at similar times each day."],["Same time last week",c[i-168],"Weekly rhythm: Saudi weekend is Friday–Saturday."],
+    ["Arrivals, last 3 h",s3,"New patients still coming in."],["Arrivals, last 24 h",s24,"How busy the day has been."],
+    ["Time of day",fmtT(t),"Discharges mostly happen 10:00–17:00."],["Islamic calendar",se||"Normal days","Hajj, Ramadan and Eid change hospital demand."]];
+  $("#why").innerHTML='<div class="tbl"><table>'+rows.map(function(r){return '<tr'+tip(r[0],r[2])+'><td>'+r[0]+'</td><td class="n"><b>'+r[1]+'</b></td></tr>';}).join("")+
+    '<tr><td><b>AI forecast in 8 h</b></td><td class="n"><b style="color:var(--accent-dk)">'+Math.round(lastF[d])+' ±'+MAE[d]+'</b></td></tr></table></div>';
+}
+DEPTS.forEach(function(d){var o=document.createElement("option");o.value=d;o.textContent=NAMES[d];$("#why-dept").appendChild(o);});
+$("#why-dept").addEventListener("change",renderWhy);
+$("#depts").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;var d=b.dataset.add||b.dataset.dis,n=b.dataset.add?1:-1,i=idxNow();
+  for(var k=i;k<Math.min(NH,i+STAY[d]);k++)census[d][k]=Math.max(0,census[d][k]+n); if(n>0)arrivals[d][i]+=1;
+  LOG("Beds now","Action",n>0?"Patient admitted":"Patient discharged",NAMES[d]+": now "+census[d][i]+" of "+BEDS[d]+" beds"); renderNow();});
+$("#actions").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;var id=b.dataset.ok||b.dataset.no,dec=b.dataset.ok?"Approved":"Dismissed";
+  var s=lastSugg.filter(function(x){return x.id===id;})[0];decisions[id]=dec;LOG("Beds now","Decision","Suggestion "+dec.toLowerCase(),s.text);logItems.unshift(fmtD(curT())+" "+fmtT(curT())+" · "+dec+": "+s.text);
+  $("#log").innerHTML=logItems.map(function(l){return "<li>"+esc(l)+"</li>";}).join("");renderNow();});
+renderNow(); setInterval(function(){if(live&&!timer)renderNow();},60000);
+
+/* ---------- 2 · week ahead ---------- */
+var dailyT0=FC.parseNaive(M.daily_ed.start),V=M.daily_ed.visits;
+function iso(ms){return new Date(ms).toISOString().slice(0,10);}
+function renderPlan(){
+  var day=FC.parseNaive($("#pdate").value),w=F.edWeek(day,V),perN=+$("#pnurse").value||10,adm=(+$("#padm").value||15)/100,showA=$("#p-actual").checked;
+  var i=Math.round((day-dailyT0)/DAY),normal=0;for(var j=0;j<28;j++)normal+=V[i-j];normal/=28;
+  var W=760,Hh=320,L=46,R=10,T=28,B=64,top=Math.max.apply(null,w.map(function(r){return Math.max(r.pred,showA&&r.actual?r.actual:0);}).concat([normal]));
+  var mx=Math.ceil(top*1.15/50)*50,y=function(v){return T+(Hh-T-B)*(1-v/mx);},bw=(W-L-R)/7,svg="",surge=[],peak=w[0],err=0;
+  for(var g=0;g<=mx;g+=50)svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="var(--line)"/><text x="'+(L-8)+'" y="'+(y(g)+4)+'" text-anchor="end" font-size="11" fill="var(--muted)">'+g+'</text>';
+  svg+='<text x="'+L+'" y="14" font-size="11" fill="var(--muted)">visits per day</text>';
+  svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(normal)+'" y2="'+y(normal)+'" stroke="var(--muted)" stroke-width="2" stroke-dasharray="6 4"'+tip("Normal level","Average of the last 28 days: "+Math.round(normal)+" visits per day.")+'/>';
+  w.forEach(function(r,k){
+    var x=L+k*bw+bw*0.2,ww=bw*0.6,isS=r.pred>normal*1.15;if(isS)surge.push(r);if(r.pred>peak.pred)peak=r;if(r.actual!=null)err+=Math.abs(r.pred-r.actual)/7;
+    var se=season(r.ms),body="AI forecast: "+Math.round(r.pred)+" visits ("+(r.pred>=normal?"+":"")+Math.round(100*(r.pred-normal)/normal)+"% vs normal)."+(r.actual!=null?" What really happened: "+r.actual+" (AI was off by "+Math.round(Math.abs(r.pred-r.actual))+").":"")+(se?" "+se+".":"");
+    svg+='<rect class="bar" x="'+x+'" y="'+y(r.pred)+'" width="'+ww+'" height="'+(y(0)-y(r.pred))+'" rx="5" fill="'+(isS?"var(--warn)":"var(--accent)")+'"'+tip(fmtD(r.ms)+" · "+hijri(r.ms),body)+'/>';
+    var lblY=y(r.pred)-8;if(showA&&r.actual!=null&&y(r.actual)<y(r.pred)+4)lblY=Math.min(lblY,y(r.actual)-9);if(Math.abs(lblY-4-y(normal))<9)lblY=Math.min(lblY,y(normal)-6);
+    svg+='<text x="'+(x+ww/2)+'" y="'+lblY+'" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)" pointer-events="none">'+Math.round(r.pred)+'</text>';
+    if(showA&&r.actual!=null)svg+='<line x1="'+(x-5)+'" x2="'+(x+ww+5)+'" y1="'+y(r.actual)+'" y2="'+y(r.actual)+'" stroke="var(--ink)" stroke-width="3" stroke-linecap="round" pointer-events="none"/>';
+    svg+='<text x="'+(x+ww/2)+'" y="'+(Hh-B+18)+'" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">'+fmtD(r.ms).slice(0,3)+" "+new Date(r.ms).getUTCDate()+'</text>';
+    var hj=hijri(r.ms).split(" ");svg+='<text x="'+(x+ww/2)+'" y="'+(Hh-B+33)+'" text-anchor="middle" font-size="10.5" fill="var(--muted)">'+hj[0]+" "+(hj[1]||"")+'</text>';
+    if(se)svg+='<text x="'+(x+ww/2)+'" y="'+(Hh-B+49)+'" text-anchor="middle" font-size="11" font-weight="700" fill="var(--warn)">'+se.replace(" season","")+'</text>';
+  });
+  $("#pchart").innerHTML=svg;
+  var base=Math.ceil(normal/perN),rows='<tr><th>Day</th><th class="n"'+tip("Visits","AI forecast of emergency visits that day.")+'>Visits</th><th class="n"'+tip("ED nurses","Visits ÷ visits per nurse, rounded up.")+'>Nurses</th><th class="n"'+tip("Extra nurses","Nurses needed on top of a normal day ("+base+").")+'>Extra</th><th class="n"'+tip("Extra admissions","(Visits − normal) × admission rate: extra patients who will need a ward bed.")+'>Extra admits</th></tr>',ea=0;
+  w.forEach(function(r){var e=Math.max(0,(r.pred-normal)*adm);ea+=e;var n=Math.ceil(r.pred/perN);
+    rows+='<tr class="'+(r.pred>normal*1.15?"hi":"")+'"'+tip(fmtD(r.ms)+" · "+hijri(r.ms),Math.round(r.pred)+" visits → "+n+" nurses, about "+Math.round(e)+" extra admissions.")+'><td>'+fmtD(r.ms)+'</td><td class="n">'+Math.round(r.pred)+'</td><td class="n">'+n+'</td><td class="n">'+(n>base?"+"+(n-base):"–")+'</td><td class="n">'+(e>=0.5?"+"+Math.round(e):"–")+'</td></tr>';});
+  $("#ptable").innerHTML=rows+'<tr><td colspan="5" class="small muted">Normal day: '+Math.round(normal)+' visits, '+base+' ED nurses.'+(showA&&w[6].actual!=null?' This week the AI was off by ±'+Math.round(err)+' visits a day on average.':'')+'</td></tr>';
+  if(surge.length)setAnswer("p","warn",surge.length+" surge day"+(surge.length>1?"s":"")+" ahead. Busiest: "+fmtD(peak.ms)+", about "+Math.round(peak.pred)+" visits",
+    "Plan up to "+(Math.ceil(peak.pred/perN)-base)+" extra ED nurses a day and prepare about "+Math.round(ea)+" extra ward beds this week.");
+  else setAnswer("p","ok","A normal week: about "+Math.round(normal)+" emergency visits a day","No extra staff needed.");
+  var pk=$("#pdate").value+perN+adm;if(pk!==lastPlanKey){lastPlanKey=pk;LOG("Week ahead","AI","7-day ED forecast","From "+fmtD(w[0].ms)+": "+w.map(function(r){return Math.round(r.pred);}).join(", ")+" visits/day. "+$("#p-h").textContent+". "+$("#p-p").textContent);}
+}
+var lastPlanKey="";
+function setPlan(ms){$("#pdate").value=iso(ms);renderPlan();}
+$("#p-hajj").addEventListener("click",function(){setPlan(hajj8-10*DAY);});
+$("#p-ram").addEventListener("click",function(){setPlan(ram1-2*DAY);});
+$("#p-eid").addEventListener("click",function(){setPlan(eid1-3*DAY);});
+["#pdate","#pnurse","#padm","#p-actual"].forEach(function(s){$(s).addEventListener("change",renderPlan);$(s).addEventListener("input",renderPlan);});
+setPlan(hajj8-10*DAY);
+
+/* ---------- 3 · risk ---------- */
+var FIELDS=[["age","Age","years",18,105,1,null,null,"Older patients have less reserve to cope with illness."],
+  ["hr","Heart rate","beats/min",30,200,1,51,90,"A fast heart rate can mean infection, bleeding or dehydration."],
+  ["rr","Breathing rate","breaths/min",5,50,1,12,20,"The earliest warning sign. Fast breathing often comes hours before collapse."],
+  ["sbp","Systolic BP","mmHg",50,240,1,111,219,"Low blood pressure means organs may not get enough blood."],
+  ["temp","Temperature","°C",33,42,0.1,36.1,38,"Fever or low temperature can mean infection."],
+  ["spo2","Oxygen saturation","%",70,100,1,96,100,"How much oxygen the blood carries. Below 96% is a warning."],
+  ["lactate","Lactate","mmol/L",0.3,15,0.1,0.5,2,"Rises when tissues lack oxygen. Above 2 is a red flag for sepsis."],
+  ["wbc","White cells","×10⁹/L",0.5,40,0.1,4,11,"High or low white cells suggest infection."],
+  ["creat","Creatinine","µmol/L",30,900,1,60,110,"A kidney blood test. High means the kidneys are struggling."]];
+var PRESETS={sepsis:{age:67,hr:112,rr:23,sbp:104,temp:38.7,spo2:94,lactate:2.9,wbc:15.8,creat:132,on_o2:false,confused:false},
+  quiet:{age:84,hr:88,rr:19,sbp:112,temp:36.6,spo2:93,lactate:2.3,wbc:9.1,creat:168,on_o2:true,confused:true},
+  stable:{age:45,hr:76,rr:14,sbp:128,temp:37.0,spo2:98,lactate:1.0,wbc:8.2,creat:80,on_o2:false,confused:false}};
+var FTIPS={"Age (per 10 y over 50)":"Each 10 years over age 50 adds risk.","Fast heart rate":"Heart rate above 90.","Slow heart rate":"Heart rate below 50.","Fast breathing":"Breathing rate above 20.",
+  "Low blood pressure":"Systolic BP below 110.","Low oxygen saturation":"Oxygen saturation below 96%.","On supplemental oxygen":"Needing oxygen is a strong sign of illness.","Fever":"Temperature above 38 °C.",
+  "Low temperature":"Temperature below 36 °C.","New confusion":"New confusion is one of the strongest warning signs.","High lactate":"Lactate above 2 mmol/L.","Abnormal white cells":"White cells outside 4–11.","High creatinine":"Creatinine above 110 µmol/L."};
+$("#rform").innerHTML=FIELDS.map(function(f){var rng=f[6]!=null?"normal "+f[6]+"–"+f[7]:"";
+  return '<label class="f" for="r-'+f[0]+'"'+tip(f[1],f[8]+(rng?" Normal range: "+f[6]+"–"+f[7]+" "+f[2]+".":""))+'>'+f[1]+' <span class="u">('+f[2]+')</span><input type="number" id="r-'+f[0]+'" min="'+f[3]+'" max="'+f[4]+'" step="'+f[5]+'"><span class="rng">'+rng+'</span></label>';}).join("")+
+  '<label class="toggle" for="r-on_o2"'+tip("On oxygen","Patient needs extra oxygen through a mask or nasal tubes.")+'><input type="checkbox" id="r-on_o2"> On oxygen</label>'+
+  '<label class="toggle" for="r-confused"'+tip("New confusion","Newly confused, drowsy or not responding normally.")+'><input type="checkbox" id="r-confused"> New confusion</label>';
+$("#rform").addEventListener("submit",function(e){e.preventDefault();});
+$("#ravg").textContent=RES.risk.deterioration_rate_pct+"%";$("#rthr").textContent="AI warns from "+(100*RM.alert_threshold).toFixed(1)+"%";
+function setPreset(k){var p=PRESETS[k];FIELDS.forEach(function(f){$("#r-"+f[0]).value=p[f[0]];});$("#r-on_o2").checked=p.on_o2;$("#r-confused").checked=p.confused;
+  $$("[data-preset]").forEach(function(b){b.classList.toggle("primary",b.dataset.preset===k);});renderRisk();}
+var riskT=null,lastRisk="";
+function renderRisk(){
+  var r={};FIELDS.forEach(function(f){var el=$("#r-"+f[0]),v=parseFloat(el.value);r[f[0]]=v;el.classList.toggle("out",f[6]!=null&&!isNaN(v)&&(v<f[6]||v>f[7]));});
+  r.on_o2=$("#r-on_o2").checked;r.confused=$("#r-confused").checked;
+  if(FIELDS.some(function(f){return isNaN(r[f[0]]);})){setAnswer("r","warn","Fill in every observation","The AI needs all of them.");return;}
+  var o=FC.risk(RM,r),n=FC.news2(r),top=o.contrib.filter(function(c){return c.value>0.01;}).slice(0,5);
+  $("#rpct").textContent=(100*o.p).toFixed(o.p<0.1?1:0)+"%";
+  var lv={alert:["crit","High risk: warning sent"],watch:["warn","Watch"],low:["ok","Low risk"]}[o.level];
+  $("#rlevel").className="chip "+lv[0];$("#rlevel").textContent=lv[1];
+  $("#rnews").textContent=n;$("#rnewsband").textContent=n>=7?"emergency response":n>=5?"urgent review":"low";
+  var reasons=top.map(function(c){return c.name.toLowerCase().replace(/ \(.*\)/,"");}),x=Math.max(1,Math.round(o.p/(RES.risk.deterioration_rate_pct/100)));
+  if(o.level==="alert")setAnswer("r","crit","Warning: this patient may get worse in the next 24 hours","About "+x+"× the risk of an average ward patient. Main reasons: "+list(reasons.slice(0,3))+". The doctor has been alerted and decides what to do.");
+  else if(o.level==="watch")setAnswer("r","warn","Watch this patient more closely","Higher than an average ward patient"+(reasons.length?", mainly from "+list(reasons.slice(0,2)):"")+". The nurse in charge decides.");
+  else setAnswer("r","ok","Low risk: no warning","Routine observations continue.");
+  var mx=top.length?top[0].value:1;
+  $("#rfactors").innerHTML=top.length?top.map(function(c){return '<div class="factor"'+tip(c.name,(FTIPS[c.name]||"")+" Pushes the risk score up by "+c.value.toFixed(2)+" points.")+'><span>'+esc(c.name)+'</span><div class="fb"><i style="width:'+(100*c.value/mx)+'%"></i></div><span class="small muted num" style="text-align:right">+'+c.value.toFixed(2)+'</span></div>';}).join(""):'<span class="small muted">All observations are within normal ranges.</span>';
+  $("#rdec").style.display=o.level==="low"?"none":"flex";$("#rstatus").className="chip warn";$("#rstatus").textContent="Waiting for doctor";
+  clearTimeout(riskT);var msg="Risk "+(100*o.p).toFixed(1)+"% ("+lv[1]+"), NEWS2 "+n+". Reasons: "+(reasons.join(", ")||"none")+". Inputs: "+FIELDS.map(function(f){return f[1]+" "+r[f[0]];}).join(", ")+(r.on_o2?", on oxygen":"")+(r.confused?", new confusion":"");
+  riskT=setTimeout(function(){if(msg!==lastRisk){lastRisk=msg;LOG("Patient risk","AI","Risk estimate",msg);}},700);
+}
+$$("[data-preset]").forEach(function(b){b.addEventListener("click",function(){setPreset(b.dataset.preset);});});
+$("#rform").addEventListener("input",renderRisk);$("#rform").addEventListener("change",renderRisk);
+$$("[data-rdec]").forEach(function(b){b.addEventListener("click",function(){$("#rstatus").className="chip ok";$("#rstatus").textContent="Doctor: "+b.dataset.rdec;
+  LOG("Patient risk","Decision","Doctor decision",b.dataset.rdec+" (AI said "+$("#rpct").textContent+", "+$("#rlevel").textContent+")");});});
+setPreset("sepsis");
+
+/*__IMAGING_JS__*/
+/* ---------- 5 · how it works ---------- */
+var FLOWS=[
+ ["Beds, 8 hours ahead",[["Data","4 years of hourly bed counts","Simulated Jeddah hospital 2023–2026: arrivals, stays, discharges, Hajj, Ramadan, Eid and winter effects. No real patients."],
+  ["AI model","Gradient-boosted trees","750 small decision trees (150 per department) that each learn part of the pattern from 14 inputs: recent bed counts, arrivals, time of day, weekday and Islamic calendar."],
+  ["Output","Beds in 8 h + suggestion","A forecast with its usual error, and an action when a department will reach 95% of beds."],
+  ["Decides","Bed manager / charge nurse","Approves or dismisses each suggestion. Every decision is logged."]]],
+ ["Emergency visits, 7 days ahead",[["Data","Daily ED visits + Hijri calendar","Daily totals from the simulation plus the Umm al-Qura calendar for every day."],
+  ["AI model","Gradient-boosted trees","200 decision trees using the last 7 and 28 days, weekday, season, and Hajj, Ramadan and Eid flags."],
+  ["Output","7-day forecast + staff plan","Visits per day turned into nurses needed and extra admissions."],
+  ["Decides","ED director / nursing office","Adjusts rosters using the plan."]]],
+ ["Patient deterioration risk",[["Data","Vital signs + 3 blood tests","Trained on 45,000 simulated ward patients modelled on published early-warning research."],
+  ["AI model","Logistic regression","A transparent formula: each finding adds a known amount to the risk, so every warning can be explained."],
+  ["Output","Risk % + reasons","The chance of ICU or a rapid-response call within 24 hours, with the top reasons."],
+  ["Decides","Patient's doctor","Reviews the patient. The AI never changes treatment."]]],
+ ["Chest X-ray warning",[["Data","5,856 real chest X-rays","PneumoniaMNIST: public, de-identified children's chest X-rays at 64×64 pixels, labelled by experts."],
+  ["AI model","Convolutional neural network","A 4-layer image AI written from scratch in JAX (60,000 weights). It learns visual patterns of pneumonia."],
+  ["Output","Score + heat map","Flags likely pneumonia and highlights where it looked, so urgent X-rays are read first."],
+  ["Decides","Radiologist / physician","Makes the diagnosis. The AI only changes reading order."]]],
+ ["Chest CT nodule warning",[["Data","1,633 real 3D chest CTs","NoduleMNIST3D: 28×28×28 voxel cubes around lung nodules from the public LIDC-IDRI collection, rated by radiologists."],
+  ["AI model","3D convolutional network","A 3-layer 3D image AI written from scratch in JAX. It looks at the nodule in all three directions at once."],
+  ["Output","Suspicion score + 3D heat map","Flags nodules that look suspicious for cancer and shows where in 3D the AI looked."],
+  ["Decides","Radiologist / tumour board","Decides on follow-up CT, biopsy or routine care. The AI only changes review order."]]]];
+$("#flows").innerHTML=FLOWS.map(function(f){return '<div><h3 style="margin-bottom:8px">'+f[0]+'</h3><div class="flow">'+f[1].map(function(b,k){
+  return '<div class="box'+(k===3?" human":"")+'"'+tip(b[0]+": "+b[1],b[2])+'><small>'+b[0]+'</small><b>'+b[1]+'</b></div>';}).join("")+'</div></div>';}).join("");
+
+/* ---------- 6 · accuracy ---------- */
+var fr=RES.forecast,rr=RES.risk,xr=RES.xray,ed=fr.ed_7day_planner,sim='<span class="chip warn"'+tip("Simulated data","Tested on our simulated hospital. Shows the method works; real-hospital testing is the next step.")+'>Simulated</span>',real='<span class="chip ok"'+tip("Real data","Tested on real, de-identified chest X-rays from a public dataset.")+'>Real X-rays</span>';
+var th=function(t,title,body,cls){return '<th class="'+(cls||"")+'"'+tip(title,body)+'>'+t+'</th>';};
+var h='<tr><th>Department</th>'+th("AI off by","Average error","How many beds the AI's 8-hour forecast was off by, on average, across 2026.","n")+th("Simple guess","Simple guess","Error if you assume the ward will be as full in 8 hours as it is now. The AI should beat this.","n")+th("Better by","Improvement","How much smaller the AI's error is than the simple guess.","n")+th("Warned in time","Early warning","Of all the times a department reached 95% of beds, how often the AI warned at least 2 hours before.","n")+th("False alarms","False alarms","Warnings where the department did not fill up within 10 hours.","n")+'<th>Tested on</th></tr>';
+DEPTS.forEach(function(d){var r=fr[d];h+='<tr><td>'+NAMES[d]+'</td><td class="n">±'+r.mae_ai_beds+'</td><td class="n">±'+r.mae_simple_guess_beds+'</td><td class="n">'+r.improvement_pct+'%</td><td class="n">'+r.warned_2h_plus_pct+'%</td><td class="n">'+r.false_alarm_pct+'%</td><td>'+sim+'</td></tr>';});
+$("#res-fc").innerHTML=h;
+$("#res-ed").innerHTML='<tr><th>Period</th>'+th("With Islamic calendar","With calendar","Average daily error 7 days ahead when the AI knows Hajj, Ramadan and Eid dates.","n")+th("Without it","Without calendar","The same AI trained without the Islamic calendar: it misses religious-season surges.","n")+'<th>Tested on</th></tr>'+
+  '<tr><td>Hajj 2026</td><td class="n">±'+Math.round(ed.hajj_2026_7days_ahead_mae_with_islamic_calendar)+' visits/day</td><td class="n">±'+Math.round(ed.hajj_2026_7days_ahead_mae_without_islamic_calendar)+' visits/day</td><td>'+sim+'</td></tr>'+
+  '<tr><td>Ramadan 2026</td><td class="n">±'+Math.round(ed.ramadan_2026_7days_ahead_mae_with)+'</td><td class="n">±'+Math.round(ed.ramadan_2026_7days_ahead_mae_without)+'</td><td>'+sim+'</td></tr>'+
+  '<tr><td>All of 2026</td><td class="n">±'+Math.round(ed.all_2026_7days_ahead_mae_visits)+'</td><td class="n">–</td><td>'+sim+'</td></tr>';
+$("#res-risk").innerHTML='<tr><th>Measure</th><th class="n">Flow Care AI</th><th class="n">NEWS2</th><th>Tested on</th></tr>'+
+  '<tr'+tip("Caught","Of patients who really got worse, the share each score warned about, with both raising the same number of alerts ("+rr.same_alert_rate_pct+"% of patients).")+'><td>Patients who got worse that were warned about</td><td class="n"><b>'+rr.caught_ai_pct+'%</b></td><td class="n">'+rr.caught_news2_pct+'%</td><td>'+sim+'</td></tr>'+
+  '<tr'+tip("Alert precision","Of all warnings raised, the share that were for a patient who really got worse.")+'><td>Warnings that were right</td><td class="n"><b>'+rr.alert_correct_ai_pct+'%</b></td><td class="n">'+rr.alert_correct_news2_pct+'%</td><td>'+sim+'</td></tr>'+
+  '<tr'+tip("AUC","Area under the ROC curve: the chance the AI ranks a patient who got worse above one who didn't. 0.5 = coin flip, 1 = perfect.")+'><td>AUC (1 = perfect)</td><td class="n"><b>'+rr.auc_ai+'</b></td><td class="n">'+rr.auc_news2+'</td><td>'+sim+'</td></tr>';
+var cr=RES.ct;
+$("#res-ct").innerHTML='<tr><th>Measure</th><th class="n">Result</th><th>Tested on</th></tr>'+
+  '<tr'+tip("Sensitivity","Of nodules radiologists rated suspicious, the share the AI flagged.")+'><td>Suspicious nodules flagged</td><td class="n"><b>'+cr.sensitivity_pct+'%</b> ('+cr.missed_cases+' missed of '+cr.test_suspicious+')</td><td><span class="chip ok">Real CT scans</span></td></tr>'+
+  '<tr'+tip("Specificity","Of benign nodules, the share the AI correctly did not flag.")+'><td>Benign nodules correctly left unflagged</td><td class="n"><b>'+cr.specificity_pct+'%</b></td><td><span class="chip ok">Real CT scans</span></td></tr>'+
+  '<tr'+tip("Precision","Of all flagged scans, the share radiologists rated suspicious.")+'><td>Flags that were right</td><td class="n"><b>'+cr.flags_correct_pct+'%</b></td><td><span class="chip ok">Real CT scans</span></td></tr>'+
+  '<tr'+tip("AUC","The chance the AI scores a suspicious nodule higher than a benign one. 1 = perfect.")+'><td>AUC (1 = perfect)</td><td class="n"><b>'+cr.auc+'</b></td><td><span class="chip ok">Real CT scans</span></td></tr>';
+$("#res-xr").innerHTML='<tr><th>Measure</th><th class="n">Result</th><th>Tested on</th></tr>'+
+  '<tr'+tip("Sensitivity","Of X-rays that really showed pneumonia, the share the AI flagged.")+'><td>Pneumonia X-rays flagged</td><td class="n"><b>'+xr.sensitivity_pct+'%</b> ('+xr.missed_cases+' missed of '+xr.test_pneumonia+')</td><td>'+real+'</td></tr>'+
+  '<tr'+tip("Specificity","Of normal X-rays, the share the AI correctly did not flag.")+'><td>Normal X-rays correctly left unflagged</td><td class="n"><b>'+xr.specificity_pct+'%</b></td><td>'+real+'</td></tr>'+
+  '<tr'+tip("Precision","Of all flagged X-rays, the share that really were pneumonia.")+'><td>Flags that were right</td><td class="n"><b>'+xr.flags_correct_pct+'%</b></td><td>'+real+'</td></tr>'+
+  '<tr'+tip("AUC","The chance the AI scores a pneumonia X-ray higher than a normal one. 1 = perfect.")+'><td>AUC (1 = perfect)</td><td class="n"><b>'+xr.auc+'</b></td><td>'+real+'</td></tr>';
+
+/* ---------- 8 · log wiring ---------- */
+LOG("System","System","Flow Care opened","5 AI models loaded and running offline in this browser");
+["#lg-cat","#lg-type"].forEach(function(x){$(x).addEventListener("change",renderLog);});$("#lg-q").addEventListener("input",renderLog);
+try{var su=localStorage.getItem("flowcare_user");if(su)$("#lg-user").value=su;}catch(e){}
+$("#lg-user").addEventListener("change",function(){try{localStorage.setItem("flowcare_user",this.value);}catch(e){}LOG("Log","System","User signed in",this.value);});
+$("#t-log").addEventListener("click",renderLog);
+$("#lg-csv").addEventListener("click",function(){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([logCSV()],{type:"text/csv"}));
+  a.download="flowcare_log_"+nowStamp().replace(/[: ]/g,"-")+".csv";document.body.appendChild(a);a.click();a.remove();LOG("Log","Action","Exported log","CSV, "+logFiltered().length+" entries");});
+$("#lg-copy").addEventListener("click",function(){var txt=logCSV();try{navigator.clipboard.writeText(txt).then(function(){$("#lg-copy").textContent="Copied ✓";setTimeout(function(){$("#lg-copy").textContent="Copy";},1500);});}catch(e){}
+  LOG("Log","Action","Copied log",logFiltered().length+" entries");});
+$("#lg-clear").addEventListener("click",function(){$("#lg-confirm").hidden=false;});
+$("#lg-no").addEventListener("click",function(){$("#lg-confirm").hidden=true;});
+$("#lg-yes").addEventListener("click",function(){var n=LOGS.length;LOGS=[];$("#lg-confirm").hidden=true;LOG("Log","System","Log cleared",n+" entries deleted");renderLog();});
+$("#logcount").textContent=LOGS.length;
+})();
+</script>
+</body>
+</html>
